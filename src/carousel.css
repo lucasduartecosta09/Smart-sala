@@ -1,0 +1,98 @@
+/* Estilos da ilha React do carrossel; o dashboard mantém visual.css. */
+.carousel-shell {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 48px);
+  min-height: 540px;
+  padding: 4px 0 12px;
+}
+.carousel-cabecalho {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  min-height: 92px;
+  padding: 18px 22px 18px 28px;
+  overflow: hidden;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-sm);
+  background: linear-gradient(100deg, var(--vidro-hover), var(--vidro));
+  box-shadow: var(--sombra-card);
+}
+.carousel-cabecalho::before {
+  content: "";
+  position: absolute;
+  inset: 14px auto 14px 0;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(180deg, var(--ciano), var(--azul));
+}
+.carousel-cabecalho h1 {
+  margin: 0 0 7px;
+  color: var(--texto-forte);
+  font-size: clamp(2rem, 3vw, 2.55rem);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+.carousel-cabecalho p {
+  color: var(--suave);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  margin: 0;
+}
+.carousel-sala {
+  flex: 0 0 auto;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: var(--chip);
+  color: var(--suave);
+  font-size: 0.75rem;
+}
+#dashboard-carousel-root, .dashboard-carousel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.dashboard-carousel-anel { width: 100%; flex: 1; min-height: 300px; overflow: hidden; }
+.dashboard-carousel .circular-carousel__photo--leaving { display: none; }
+.carousel-atalhos { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+#carousel-fallback { margin-top: 16px; }
+.dashboard-carousel .circular-carousel:focus-visible { outline: 2px solid var(--borda-foco); outline-offset: 2px; }
+#grafico-principal-slot { min-width: 0; width: 100%; }
+#aba-sensores { padding-top: 0; }
+body[data-aba-ativa="sensores"] .banner { display: none; }
+body[data-aba-ativa="sensores"] .conteudo { padding: 24px 28px; }
+.dashboard-detalhes-topo { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 16px; }
+.dashboard-detalhes-titulo { flex: 1; min-width: 220px; }
+.dashboard-detalhes-titulo h2 { margin: 0 0 4px; }
+.dashboard-detalhes-titulo p { color: var(--suave); font-size: 0.76rem; margin: 0; }
+.dashboard-detalhes-acoes { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#dashboard-detalhes { transform-origin: center 18vh; }
+.dashboard-zoom-entrada { animation: dashboard-zoom 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes dashboard-zoom { from { opacity: 0; transform: translateY(12px) scale(.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 900px) {
+  .carousel-shell { height: calc(100dvh - 180px); }
+}
+@media (max-width: 600px) {
+  body[data-aba-ativa="sensores"] .conteudo { padding: 16px; }
+  .carousel-shell { min-height: 520px; height: calc(100dvh - 160px); }
+  .carousel-cabecalho { min-height: 78px; padding: 15px 16px 15px 22px; }
+  .carousel-cabecalho::before { inset-block: 12px; }
+  .carousel-cabecalho h1 { font-size: 1.75rem; }
+  .carousel-cabecalho p { font-size: 0.78rem; line-height: 1.45; }
+  .dashboard-carousel-anel .circular-carousel { width: 160%; margin-left: -30%; }
+  .carousel-atalhos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .carousel-atalhos .btn { min-width: 0; padding-inline: 8px; justify-content: center; font-size: 0.8rem; }
+  .carousel-sala { display: none; }
+  .dashboard-detalhes-titulo { flex-basis: 100%; order: 2; }
+  .dashboard-detalhes-acoes { margin-left: auto; }
+  .dashboard-detalhes-acoes .historico-atualizacao { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .dashboard-zoom-entrada { animation: none; } }
