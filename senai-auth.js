@@ -256,8 +256,7 @@ window.senaiAuth = (() => {
       // Alunos usam o dashboard em modo de observação local
       for (const id of [
         "btn-baixar", "btn-limpar",
-        "btn-desligar-tudo", "modo-auto", "temp-alta", "lux-baixa",
-        "auto-refresh", "intervalo"
+        "btn-desligar-tudo", "modo-auto", "temp-alta", "lux-baixa"
       ]) {
         const el = document.getElementById(id);
         if (el) el.disabled = true;
