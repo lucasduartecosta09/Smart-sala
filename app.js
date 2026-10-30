@@ -1907,6 +1907,11 @@ function configurarVoz() {
     },
 
     onCommand(comando) {
+      if (window.senaiAuth?.canOperatePanel && !window.senaiAuth.canOperatePanel() &&
+          ["ligar_modo_auto", "desligar_modo_auto", "desligar_tudo", "baixar_historico", "limpar_historico"].includes(comando)) {
+        status.textContent = "Este comando é restrito a professores e administradores.";
+        return;
+      }
       const comandosManuais = [
         "ligar_ventilador",
         "desligar_ventilador",
@@ -2842,6 +2847,11 @@ function aprimorarVozConversa() {
     }
 
     // Modo automático ligado: ventilador e LEDs não podem ser desligados individualmente.
+    if (window.senaiAuth?.canOperatePanel && !window.senaiAuth.canOperatePanel() &&
+        ["ligar_modo_auto", "desligar_modo_auto", "desligar_tudo", "baixar_historico", "limpar_historico"].includes(comando)) {
+      falarVoz("Este comando é restrito a professores e administradores.");
+      return;
+    }
     const bloqueio = VOZ_BLOQUEIOS_AUTO[comando];
     if (bloqueio && estado.modoAuto) {
       registrarEvento(`${bloqueio.nome} não pode ser ${bloqueio.desligado} no modo automático`);
