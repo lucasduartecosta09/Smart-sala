@@ -255,7 +255,7 @@ window.senaiAuth = (() => {
     if (!canOperatePanel()) {
       // Alunos usam o dashboard em modo de observação local
       for (const id of [
-        "btn-baixar", "btn-limpar", "btn-toggle-voz", "btn-voz",
+        "btn-baixar", "btn-limpar",
         "btn-desligar-tudo", "modo-auto", "temp-alta", "lux-baixa",
         "auto-refresh", "intervalo"
       ]) {
@@ -264,7 +264,7 @@ window.senaiAuth = (() => {
       }
 
       const configTab = document.getElementById("aba-btn-config");
-      if (configTab) configTab.hidden = true;
+      if (configTab) configTab.hidden = false;
     }
 
     const preencher = (seletor, valor) => {
