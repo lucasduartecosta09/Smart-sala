@@ -318,7 +318,7 @@ window.senaiAuth = (() => {
       $("btn-cancelar-edicao").hidden = !usuario;
       $("nova-senha").required = !usuario;
       $("nova-senha-rotulo").textContent = usuario ? "Nova senha (opcional)" : "Senha inicial";
-      $("nova-senha-ajuda").textContent = usuario ? "Deixe em branco para manter a senha atual. Se trocar, use 12 caracteres ou mais, com maiúscula, minúscula, número e símbolo." : "De 12 a 128 caracteres, com maiúscula, minúscula, número e símbolo.";
+      $("nova-senha-ajuda").textContent = usuario ? "Deixe em branco para manter a senha atual. Se trocar, use 6 caracteres ou mais, com pelo menos um símbolo." : "De 6 a 128 caracteres, com pelo menos um símbolo.";
       if (usuario) {
         $("novo-nome").value = usuario.full_name || "";
         $("novo-email").value = usuario.email || "";
