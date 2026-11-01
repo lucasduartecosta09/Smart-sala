@@ -2,7 +2,7 @@
 <html lang="pt-BR" data-tema="escuro">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://xjmkftxvwsvxjujgaysd.supabase.co wss://xjmkftxvwsvxjujgaysd.supabase.co; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://xjmkftxvwsvxjujgaysd.supabase.co wss://xjmkftxvwsvxjujgaysd.supabase.co; font-src 'self'; media-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Monitoramento dos sensores | SENAI Smart Class</title>
@@ -64,7 +64,7 @@
         <label for="senai-email">E-mail de acesso</label>
         <div class="senai-input-wrap">
           <svg class="ico senai-input-ico"><use href="#i-mail"/></svg>
-          <input id="senai-email" type="email" placeholder="usuario@senai.br" autocomplete="username" required>
+          <input id="senai-email" type="email" placeholder="usuario@senai.br" autocomplete="username" autocapitalize="none" spellcheck="false" inputmode="email" maxlength="254" required>
         </div>
       </div>
 
@@ -72,7 +72,7 @@
         <label for="senai-password">Senha</label>
         <div class="senai-input-wrap">
           <svg class="ico senai-input-ico"><use href="#i-lock"/></svg>
-          <input id="senai-password" type="password" placeholder="Digite sua senha" autocomplete="current-password" required>
+          <input id="senai-password" type="password" placeholder="Digite sua senha" autocomplete="current-password" maxlength="128" required>
           <button type="button" id="btn-toggle-senha" class="btn-toggle-senha" title="Mostrar/ocultar senha" aria-label="Mostrar ou ocultar senha">
             <svg class="ico"><use href="#i-eye"/></svg>
           </button>
