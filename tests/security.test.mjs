@@ -10,6 +10,11 @@ const policy = document.querySelector('meta[http-equiv="Content-Security-Policy"
 test('CSP bloqueia scripts inline, eval, objetos e conexões arbitrárias', () => {
   const directives = Object.fromEntries(policy.split(';').map(s => s.trim().split(/\s+/)).filter(s => s[0]).map(([k,...v]) => [k,v]));
   assert.deepEqual(directives['script-src'], ["'self'", 'https://cdn.jsdelivr.net']);
+  assert.deepEqual(directives['script-src-attr'], ["'none'"]);
+  assert.deepEqual(directives['worker-src'], ["'self'"]);
+  assert.deepEqual(directives['media-src'], ["'self'"]);
+  assert.deepEqual(directives['manifest-src'], ["'self'"]);
+  assert.deepEqual(directives['upgrade-insecure-requests'], []);
   assert.deepEqual(directives['object-src'], ["'none'"]);
   assert.deepEqual(directives['connect-src'], ["'self'", 'https://xjmkftxvwsvxjujgaysd.supabase.co', 'wss://xjmkftxvwsvxjujgaysd.supabase.co']);
   assert.equal(document.querySelectorAll('script:not([src])').length, 0);
@@ -28,7 +33,13 @@ test('Vercel entrega a mesma CSP e impede incorporação em iframe', () => {
   assert.equal(headers['Strict-Transport-Security'], 'max-age=63072000; includeSubDomains; preload');
   assert.equal(headers['X-Frame-Options'], 'DENY');
   assert.equal(headers['Cross-Origin-Opener-Policy'], 'same-origin');
+  assert.equal(headers['Cross-Origin-Resource-Policy'], 'same-origin');
+  assert.equal(headers['Origin-Agent-Cluster'], '?1');
+  assert.equal(headers['X-DNS-Prefetch-Control'], 'off');
+  assert.equal(headers['X-Permitted-Cross-Domain-Policies'], 'none');
+  assert.equal(headers['X-Robots-Tag'], 'noindex, nofollow, noarchive');
   assert.match(headers['Permissions-Policy'], /camera=\(\)/);
+  assert.match(headers['Permissions-Policy'], /microphone=\(self\)/);
 });
 test('login usa gateway com limite no servidor e não autentica diretamente no navegador', () => {
   assert.match(authSource, /functions\.invoke\("senai-login"/);
@@ -37,6 +48,12 @@ test('login usa gateway com limite no servidor e não autentica diretamente no n
   assert.doesNotMatch(authSource, /auth\.signInWithPassword/);
 });
 test('novas senhas exigem comprimento e diversidade de caracteres', () => {
+  const loginEmail = document.getElementById('senai-email');
+  const loginPassword = document.getElementById('senai-password');
+  assert.equal(loginEmail.maxLength, 254);
+  assert.equal(loginPassword.maxLength, 128);
+  assert.equal(loginEmail.getAttribute('autocapitalize'), 'none');
+  assert.equal(loginEmail.getAttribute('spellcheck'), 'false');
   const password = document.getElementById('nova-senha');
   assert.equal(password.minLength, 12);
   assert.equal(password.maxLength, 128);
