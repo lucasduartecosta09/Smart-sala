@@ -29,5 +29,25 @@ Senhas novas ou alteradas pela gestão exigem de 12 a 128 caracteres, com letra 
 Backend aplicado no projeto `senai-smart-class01`:
 
 - Migrations `harden_auth_rate_limit_and_audit_rows` e `fix_login_rate_limit_timestamp_variable`.
-- Edge Function `senai-login` versão 2, sem JWT porque recebe credenciais antes da sessão e executa seu próprio controle de origem e abuso.
-- Edge Function `senai-admin` versão 8, com JWT obrigatório, política forte de senha, CORS restrito e erros inesperados sanitizados.
+- Edge Function `senai-login` versão 6, sem JWT porque recebe credenciais antes da sessão e executa seu próprio controle de origem e abuso.
+- Edge Function `senai-admin` versão 12, com JWT obrigatório, política forte de senha, CORS restrito e erros inesperados sanitizados.
+
+## Hardening do frontend de 31/10/2026
+
+- A CSP agora bloqueia atributos de script inline (`script-src-attr 'none'`), limita workers, mídia e manifestos à própria origem e exige upgrade de subrecursos HTTP para HTTPS no deployment.
+- A publicação aplica `Cross-Origin-Resource-Policy: same-origin`, `Origin-Agent-Cluster: ?1`, bloqueio de prefetch DNS e de políticas cross-domain legadas, além de impedir indexação do painel autenticado.
+- A política de permissões mantém câmera, geolocalização, pagamentos e USB bloqueados; o microfone é permitido somente à própria origem porque o assistente de voz depende dessa capacidade.
+- O formulário de login limita e-mail a 254 caracteres e senha a 128 caracteres, desliga autocapitalização/corretor no e-mail e preserva o fluxo atual de autenticação.
+
+### Verificações de backend em 31/10/2026
+
+- O allowlist CORS das funções `senai-login` e `senai-admin` foi reduzido para `https://smart-sala.vercel.app` e desenvolvimento local. Os domínios Vercel legado e de teste foram removidos.
+- Todas as tabelas em `public` têm RLS ativo. As políticas usam `auth.uid()`, `is_active()`, `can_operate_panel()` e `is_admin()` conforme a ação; inserções de comandos, leituras e eventos também conferem o autor com `WITH CHECK`.
+- O limite de login é atômico no servidor por hash de conta e origem de rede. A tabela técnica `app_private.login_rate_limits` não possui política RLS porque não é exposta pela API pública; ela só é acessada pelas RPCs privilegiadas da função.
+- A criação e troca de senha pela função administrativa exigem agora 12 a 128 caracteres, com maiúscula, minúscula, número e símbolo, igual à interface.
+
+### Pendências operacionais
+
+1. Ativar **Leaked Password Protection** em Supabase Auth; o Security Advisor ainda aponta esse recurso como desativado.
+2. Executar matriz autenticada de ALUNO, PROFESSOR e ADM em homologação para validar RBAC, IDOR, exportação e revogação de sessão.
+3. Exercitar o bloqueio de login com contas descartáveis, em homologação, para confirmar o ciclo completo de bloqueio e liberação sem realizar força bruta em produção.
