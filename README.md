@@ -15,8 +15,7 @@ A Vercel publica automaticamente os commits enviados à branch `main` deste repo
 ## Funcionalidades
 
 - Indicadores e carrossel circular para escolher o gráfico principal, com históricos contextuais das demais grandezas na aba **Sensores**.
-- Rotação automática da roleta a cada 10 segundos, com botão de pausa, para apresentação em monitor.
-- Faixa de créditos do projeto na tela da roleta.
+- **Modo apresentação** para a TV de eventos: sequência automática de gráficos, roleta girando, abertura animada com a logo do SENAI e equipe do projeto. Desligado, o painel funciona como antes.
 - Controles do servo SG90, ventilador DC e LEDs, regras automáticas, exportação de histórico e assistente de voz.
 - Temas escuro e claro. O tema claro usa superfícies brancas, texto escuro e acentos roxos.
 - Layout para computador, tablet e celular.
@@ -66,15 +65,25 @@ Todos os gráficos continuam usando `estado.historico`, com até 100 amostras. A
 
 Verificação manual: confirme o acesso e o carregamento do histórico com uma conta real no Supabase. As leituras e os atuadores continuam simulados. O carregamento remoto existente não filtra sala/sensor; caso o banco contenha outros ambientes, confira a origem das leituras antes de tratá-las como pertencentes a uma única sala. Essa consulta foi preservada nesta junção.
 
-## Rotação automática e créditos (monitor do evento)
+## Modo apresentação (TV do evento)
 
-- A roleta avança um cartão a cada 10 segundos. A barra abaixo dela mostra o tempo até a próxima troca, na cor do cartão da frente, e o texto ao lado indica qual cartão vem a seguir.
-- **Pausar rotação** para a roleta e **Retomar rotação** volta a girar. Com a preferência de movimento reduzido do sistema, a roleta começa parada e só gira se alguém pedir.
+- O botão **Modo apresentação**, na barra lateral do computador, liga e desliga o modo. Desligado, o painel é o de antes: a roleta não gira sozinha e não aparecem créditos nem a logo.
+- Ligado, o painel entra em tela cheia, sem barra lateral e sem o assistente de voz, e o cursor some depois de 2,5 segundos parado.
+- As telas se repetem nesta ordem: gráfico ampliado do cartão da frente (10 s), roleta girando (35 s), abertura animada com a logo do SENAI espelhada (9 s) e equipe do projeto (16 s). No gráfico ampliado ficam só o título, os indicadores e o gráfico.
+- **Esc**, o botão **Sair da apresentação** (aparece ao mexer o mouse) ou sair da tela cheia voltam ao painel normal. **PageDown** e **PageUp** (passadores de slide) pulam de tela.
+- A abertura mostra os mesmos valores dos sensores do painel. Os tempos ficam em `CENAS`, em `src/apresentacao.mjs`; os nomes da equipe e os orientadores, em `src/equipe.mjs`. Depois de alterar, execute `npm run build`.
+- As animações usam GSAP (SplitText e DrawSVG), empacotado no próprio bundle. Com a preferência de movimento reduzido, as telas só aparecem e somem.
+- A logo do SENAI fica em `assets/senai-marca*.png`: a colorida para o tema claro e a negativa (branca com o acento laranja) para o escuro e para as telas da apresentação.
+
+### Rotação automática e créditos (no modo apresentação)
+
+- A roleta avança um cartão a cada 10 segundos. Abaixo dela fica um controle discreto: o ícone de pausa e uma linha fina, na cor do cartão da frente, que mostra o tempo até a próxima troca. Ele fica apagado no painel e ganha nitidez ao passar o mouse ou receber foco pelo teclado.
+- O ícone de pausa para a roleta e o de play volta a girar. Com a preferência de movimento reduzido do sistema, a roleta começa parada e só gira se alguém pedir.
 - Mover o mouse, tocar, rolar, usar o teclado ou chegar à roleta pelo Tab adia a troca. A contagem recomeça do zero 2,5 segundos depois da última interação; um cursor parado ou um foco esquecido na roleta não seguram a apresentação.
 - A contagem também para no dashboard ampliado, em outra aba do painel, com a roleta fora da tela ou com a aba do navegador escondida, e volta sozinha quando a roleta reaparece.
 - Enquanto a roleta gira sozinha, as trocas não são anunciadas ao leitor de tela; com a rotação pausada, voltam a ser anunciadas.
-- A faixa de créditos fica abaixo da roleta, com quem desenvolveu o projeto e os professores.
-- O intervalo é `INTERVALO_ROTACAO_MS` em `src/rotacao-automatica.mjs`. Ao mudar o valor, atualize o texto do cabeçalho em `index.html` e execute `npm run build`.
+- A faixa de créditos fica abaixo da roleta, com quem desenvolveu o projeto e os professores, e a logo do SENAI aparece discreta no cabeçalho, com um reflexo suave.
+- O intervalo é `INTERVALO_ROTACAO_MS` em `src/rotacao-automatica.mjs`. Depois de alterar, execute `npm run build`.
 
 ## Carrossel circular (React Bits)
 
@@ -100,6 +109,9 @@ Os arquivos em `assets/` acompanham o código, portanto a página continua funci
 - `src/dashboard-carousel.jsx`: ilha React, navegação, mudança de tema e sincronização com o dashboard.
 - `src/sensor-cards.mjs`: prévias SVG calculadas a partir das leituras reais da sessão (atualmente simuladas).
 - `src/rotacao-automatica.mjs`: temporizador único da rotação automática e motivos de pausa, testado em `tests/rotacao-automatica.test.mjs`.
+- `src/apresentacao.mjs`: sequência e tempos do modo apresentação, testada em `tests/apresentacao.test.mjs`.
+- `src/apresentacao.jsx` e `src/apresentacao.css`: telas de abertura e da equipe (GSAP) e o visual do painel no modo apresentação.
+- `src/equipe.mjs`: nomes da equipe por grupo e orientadores.
 - `src/carousel.css`: integração do carrossel ao tema e ao layout responsivo.
 - `scripts/build-carousel.mjs`: gera `assets/dashboard-carousel.js`, CSS e avisos de licença.
 - `app.js`: recebe `dashboard:select-metric` (navegar), `dashboard:open` (abrir com zoom) e `dashboard:close` (voltar), e publica `dashboard:state` somente após o início autenticado. A troca move os canvases existentes; não duplica leituras, filtros, temporizadores ou consultas. O hover não dispara renders React.

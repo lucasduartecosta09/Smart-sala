@@ -1,11 +1,17 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import CircularCarousel from './components/CircularCarousel.jsx';
 import { SENSORES, criarCartao } from './sensor-cards.mjs';
 import { INTERVALO_ROTACAO_MS, criarRotacaoAutomatica } from './rotacao-automatica.mjs';
+import { criarApresentacao } from './apresentacao.mjs';
+import { BotaoSairApresentacao, TelaAbertura, TelaEquipe } from './apresentacao.jsx';
 import './carousel.css';
 
 const SEGUNDOS_ROTACAO = INTERVALO_ROTACAO_MS / 1000;
+const ROTULO_ROLETA = 'Roleta de dashboards. Passe o cursor sobre um cartão para trazê-lo ao centro. Dê um duplo clique ou pressione Enter para ampliar.';
+const ROTULO_ROLETA_APRESENTACAO = `Roleta de dashboards. Gira sozinha a cada ${SEGUNDOS_ROTACAO} segundos; use o botão Pausar rotação para parar. Passe o cursor sobre um cartão para trazê-lo ao centro. Dê um duplo clique ou pressione Enter para ampliar.`;
+const ESPERA_CURSOR_MS = 2500;
 
 function escolherMetrica(chave) {
   document.dispatchEvent(new CustomEvent('dashboard:select-metric', { detail: { chave } }));
@@ -13,6 +19,10 @@ function escolherMetrica(chave) {
 
 function abrirDashboard(chave) {
   document.dispatchEvent(new CustomEvent('dashboard:open', { detail: { chave } }));
+}
+
+function fecharDashboard() {
+  document.dispatchEvent(new Event('dashboard:close'));
 }
 
 function prefereMenosMovimento() {
@@ -42,13 +52,18 @@ function DashboardCarousel() {
   const carrossel = useRef(null);
   const anel = useRef(null);
   const ativo = useRef(0);
+  const telaCheia = useRef(false);
   const [indiceFrente, setIndiceFrente] = useState(0);
   const [rotacao] = useState(() => criarRotacaoAutomatica({
     avancar: () => carrossel.current?.focusIndex((ativo.current + 1) % SENSORES.length),
-    // Parada até receber leituras; com movimento reduzido, só gira se a pessoa pedir.
-    motivosIniciais: ['montagem', 'sem-dados', ...(prefereMenosMovimento() ? ['usuario'] : [])]
+    // Fora do modo apresentação o painel fica como antes, sem girar sozinho.
+    // Com movimento reduzido, a roleta só gira se a pessoa pedir.
+    motivosIniciais: ['montagem', 'sem-dados', 'modo-normal', ...(prefereMenosMovimento() ? ['usuario'] : [])]
   }));
+  const [apresentacao] = useState(() => criarApresentacao());
   const estadoRotacao = useSyncExternalStore(rotacao.assinar, rotacao.obterEstado);
+  const estadoApresentacao = useSyncExternalStore(apresentacao.assinar, apresentacao.obterEstado);
+  const { ativa, cena, passo } = estadoApresentacao;
   const temDados = Boolean(snapshot);
 
   useEffect(() => {
@@ -136,6 +151,93 @@ function DashboardCarousel() {
     if (focoPeloTeclado(evento.target)) rotacao.registrarInteracao();
   }, [rotacao]);
 
+  // ===== Modo apresentação =====
+  const iniciarApresentacao = useCallback(() => {
+    if (document.body.dataset.abaAtiva !== 'sensores') document.getElementById('aba-btn-sensores')?.click();
+    window.scrollTo?.(0, 0);
+    apresentacao.iniciar();
+    // A tela cheia precisa sair do próprio clique; se o navegador recusar, a apresentação segue na janela.
+    const raiz = document.documentElement;
+    if (!document.fullscreenElement && typeof raiz.requestFullscreen === 'function') {
+      raiz.requestFullscreen().then(() => { telaCheia.current = true; }, () => {});
+    }
+  }, [apresentacao]);
+
+  const pararApresentacao = useCallback(() => {
+    apresentacao.parar();
+    if (telaCheia.current && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    telaCheia.current = false;
+  }, [apresentacao]);
+
+  // Botão "Modo apresentação" da barra lateral.
+  useEffect(() => {
+    const botao = document.getElementById('btn-apresentacao');
+    if (!botao) return undefined;
+    const alternar = () => (apresentacao.obterEstado().ativa ? pararApresentacao() : iniciarApresentacao());
+    botao.addEventListener('click', alternar);
+    return () => botao.removeEventListener('click', alternar);
+  }, [apresentacao, iniciarApresentacao, pararApresentacao]);
+
+  // Liga e desliga: desligado, tudo volta a ser o painel de antes.
+  useEffect(() => {
+    document.body.classList.toggle('modo-apresentacao', ativa);
+    document.getElementById('btn-apresentacao')?.setAttribute('aria-pressed', String(ativa));
+    rotacao.definir('modo-normal', !ativa);
+    if (ativa) return;
+    rotacao.retomar('apresentacao');
+    if (visualizacao.current === 'detalhes') fecharDashboard();
+  }, [rotacao, ativa]);
+
+  // Cada cena: gráfico ampliado do cartão da frente, roleta girando ou telas por cima do painel.
+  useEffect(() => {
+    if (!ativa) return;
+    rotacao.definir('apresentacao', cena === 'abertura' || cena === 'equipe');
+    if (cena === 'graficos') abrir(ativo.current);
+    else if (visualizacao.current === 'detalhes') fecharDashboard();
+  }, [rotacao, abrir, ativa, cena, passo]);
+
+  // Esc sai; PageDown e PageUp (passadores de slide) pulam de tela; sair da tela cheia encerra.
+  useEffect(() => {
+    if (!ativa) return undefined;
+    const teclado = evento => {
+      if (evento.key === 'Escape') pararApresentacao();
+      else if (evento.key === 'PageDown') { evento.preventDefault(); apresentacao.avancar(); }
+      else if (evento.key === 'PageUp') { evento.preventDefault(); apresentacao.voltar(); }
+    };
+    const telaCheiaMudou = () => {
+      if (!document.fullscreenElement && telaCheia.current) {
+        telaCheia.current = false;
+        apresentacao.parar();
+      }
+    };
+    document.addEventListener('keydown', teclado);
+    document.addEventListener('fullscreenchange', telaCheiaMudou);
+    return () => {
+      document.removeEventListener('keydown', teclado);
+      document.removeEventListener('fullscreenchange', telaCheiaMudou);
+    };
+  }, [ativa, apresentacao, pararApresentacao]);
+
+  // O cursor some depois de alguns segundos parado e volta ao mexer o mouse.
+  useEffect(() => {
+    if (!ativa) return undefined;
+    let espera = 0;
+    const mostrar = () => {
+      document.body.classList.remove('cursor-oculto');
+      clearTimeout(espera);
+      espera = setTimeout(() => document.body.classList.add('cursor-oculto'), ESPERA_CURSOR_MS);
+    };
+    mostrar();
+    document.addEventListener('pointermove', mostrar);
+    document.addEventListener('keydown', mostrar);
+    return () => {
+      clearTimeout(espera);
+      document.removeEventListener('pointermove', mostrar);
+      document.removeEventListener('keydown', mostrar);
+      document.body.classList.remove('cursor-oculto');
+    };
+  }, [ativa]);
+
   if (!snapshot) return null;
   const atual = SENSORES.find(sensor => sensor.chave === snapshot.principal);
   const frente = SENSORES[indiceFrente] ?? atual;
@@ -155,7 +257,7 @@ function DashboardCarousel() {
       >
         <CircularCarousel
           ref={carrossel}
-          ariaLabel={`Roleta de dashboards. Gira sozinha a cada ${SEGUNDOS_ROTACAO} segundos; use o botão Pausar rotação para parar. Passe o cursor sobre um cartão para trazê-lo ao centro. Dê um duplo clique ou pressione Enter para ampliar.`}
+          ariaLabel={ativa ? ROTULO_ROLETA_APRESENTACAO : ROTULO_ROLETA}
           live={estadoRotacao.rodando ? 'off' : 'polite'}
           items={items}
           preset="orbit"
@@ -179,18 +281,35 @@ function DashboardCarousel() {
           onItemDoubleClick={(_item, index) => abrir(index)}
         />
       </div>
-      <div className="rotacao-controle">
-        <button type="button" className="btn rotacao-botao" onClick={() => rotacao.alternar('usuario')} aria-describedby="rotacao-status">
-          <svg className="ico" aria-hidden="true"><use href={pausadaPeloUsuario ? '#i-play' : '#i-pausa'} /></svg>
-          {pausadaPeloUsuario ? 'Retomar rotação' : 'Pausar rotação'}
-        </button>
-        <span className="rotacao-trilho" aria-hidden="true">
-          {estadoRotacao.rodando && (
-            <span key={estadoRotacao.ciclo} className="rotacao-barra" style={{ animationDuration: `${INTERVALO_ROTACAO_MS}ms` }} />
-          )}
-        </span>
-        <span id="rotacao-status" className="rotacao-status">{textoRotacao(estadoRotacao, proximo)}</span>
-      </div>
+      {/* Controle discreto da apresentação: só o ícone e a linha de contagem ficam à vista. */}
+      {ativa && (
+        <div className="rotacao-controle">
+          <button
+            type="button"
+            className="rotacao-botao"
+            onClick={() => rotacao.alternar('usuario')}
+            aria-label={pausadaPeloUsuario ? 'Retomar rotação automática' : 'Pausar rotação automática'}
+            title={pausadaPeloUsuario ? 'Retomar rotação' : 'Pausar rotação'}
+            aria-describedby="rotacao-status"
+          >
+            <svg className="ico" aria-hidden="true"><use href={pausadaPeloUsuario ? '#i-play' : '#i-pausa'} /></svg>
+          </button>
+          <span className="rotacao-trilho" aria-hidden="true">
+            {estadoRotacao.rodando && (
+              <span key={estadoRotacao.ciclo} className="rotacao-barra" style={{ animationDuration: `${INTERVALO_ROTACAO_MS}ms` }} />
+            )}
+          </span>
+          <span id="rotacao-status" className="sr-only">{textoRotacao(estadoRotacao, proximo)}</span>
+        </div>
+      )}
+      {ativa && createPortal(
+        <div className="ap-camada">
+          {cena === 'abertura' && <TelaAbertura key={passo} duracao={estadoApresentacao.duracao} sensores={snapshot.sensores} />}
+          {cena === 'equipe' && <TelaEquipe key={passo} duracao={estadoApresentacao.duracao} />}
+          <BotaoSairApresentacao onSair={pararApresentacao} />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -1,0 +1,274 @@
+/* ===== MODO APRESENTAÇÃO (TV do evento) =====
+   Desligado, o painel fica como era antes. Ligado, o painel ocupa a tela inteira
+   e as telas de abertura e da equipe entram por cima, sempre no visual escuro de palco. */
+
+/* Botão na barra lateral, logo acima de "Modo claro". */
+.apresentacao-btn {
+  margin-top: auto;
+  border-radius: 12px;
+  padding: 11px 14px;
+  justify-content: center;
+}
+.apresentacao-btn + .sidebar-acoes { margin-top: 0; }
+@media (max-width: 900px) {
+  .apresentacao-btn { display: none; }
+}
+
+/* Painel durante a apresentação: só o conteúdo, de ponta a ponta. */
+body.modo-apresentacao .sidebar,
+body.modo-apresentacao #btn-toggle-voz,
+body.modo-apresentacao #voz-widget { display: none !important; }
+body.modo-apresentacao[data-aba-ativa] .conteudo { width: 100%; max-width: none; }
+body.modo-apresentacao { overflow: hidden; }
+
+/* No gráfico ampliado ficam o título, os indicadores e o gráfico. */
+body.modo-apresentacao #btn-voltar-roleta,
+body.modo-apresentacao .dashboard-detalhes-acoes,
+body.modo-apresentacao .historico-download,
+body.modo-apresentacao #historico-selecao,
+body.modo-apresentacao #btn-limpar { display: none !important; }
+/* O painel foca o gráfico ao abrir e a roleta ao voltar; na TV o contorno de foco só atrapalha. */
+body.modo-apresentacao #dashboard-detalhes canvas.grafico:focus,
+body.modo-apresentacao .dashboard-carousel .circular-carousel:focus-visible { outline: none; box-shadow: none; }
+
+/* O cursor some depois de alguns segundos parado. */
+body.modo-apresentacao.cursor-oculto,
+body.modo-apresentacao.cursor-oculto * { cursor: none !important; }
+
+/* ===== CAMADA DAS TELAS ===== */
+.ap-camada { position: fixed; inset: 0; z-index: 1000; pointer-events: none; }
+.ap-camada > * { pointer-events: auto; }
+
+.ap-cena {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #f1f5f9;
+  background: radial-gradient(120% 90% at 50% 0%, #0d1f45 0%, #060d1f 55%, #03070f 100%);
+}
+
+.ap-fundo { position: absolute; inset: 0; pointer-events: none; }
+.ap-aurora {
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  will-change: transform;
+}
+.ap-aurora-1 { left: -18vmax; top: -30vmax; background: radial-gradient(circle, rgba(34, 211, 238, 0.32), transparent 62%); }
+.ap-aurora-2 { right: -22vmax; bottom: -34vmax; background: radial-gradient(circle, rgba(59, 130, 246, 0.34), transparent 62%); }
+
+/* Piso quadriculado em perspectiva, onde a logo "reflete". */
+.ap-piso {
+  position: absolute;
+  left: -25%;
+  right: -25%;
+  bottom: 0;
+  height: 46%;
+  perspective: 520px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 92%);
+  mask-image: linear-gradient(to top, #000 0%, transparent 92%);
+}
+.ap-piso-plano { position: absolute; inset: 0; transform: rotateX(62deg); transform-origin: 50% 100%; }
+.ap-piso-grade {
+  position: absolute;
+  inset: -64px 0 0;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.2) 1px, transparent 1px);
+  background-size: 64px 64px;
+  will-change: transform;
+}
+
+/* Trilhas de circuito e pulsos de dados. */
+.ap-circuito { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ap-traco { fill: none; stroke: rgba(56, 189, 248, 0.32); stroke-width: 2; stroke-linejoin: round; }
+.ap-pulso { fill: none; stroke: #67e8f9; stroke-width: 3; stroke-linecap: round; opacity: 0; visibility: hidden; }
+.ap-no { fill: #071226; stroke: #38bdf8; stroke-width: 2.5; }
+
+/* Logo em camadas com brilho e reflexo. */
+.ap-marca-espelhada { position: relative; width: min(44vw, 700px); }
+.ap-marca { position: relative; display: block; }
+.ap-marca-base { display: block; width: 100%; height: auto; }
+.ap-marca-acento { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ap-marca-brilho {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.ap-marca-brilho-faixa {
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  width: 26%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.9) 50%, transparent 100%);
+  transform: translateX(-160%);
+}
+.ap-marca-reflexo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  transform: scaleY(-1);
+  opacity: 0.24;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 58%);
+  mask-image: linear-gradient(to top, #000 0%, transparent 58%);
+}
+
+/* ===== ABERTURA ===== */
+.ap-abertura-conteudo {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(12px, 2.4vh, 26px);
+  padding: 0 5vw;
+  text-align: center;
+}
+.ap-abertura .ap-marca-espelhada { margin-bottom: calc(min(44vw, 700px) * 0.1); }
+.ap-abertura-titulo {
+  margin: 0;
+  font-size: clamp(2.6rem, 5.4vw, 6rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-kerning: none;
+}
+.ap-abertura-titulo em { font-style: normal; color: #22d3ee; }
+.ap-abertura-subtitulo { margin: 0; font-size: clamp(1rem, 1.55vw, 1.55rem); color: #b6c3d6; }
+.ap-sensores {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin: clamp(6px, 1.6vh, 18px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ap-sensor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-color: color-mix(in srgb, var(--cor) 45%, transparent);
+  border-radius: 14px;
+  background: rgba(10, 22, 48, 0.72);
+  font-size: clamp(0.92rem, 1.1vw, 1.18rem);
+}
+.ap-sensor .ico { width: 1.3em; height: 1.3em; color: var(--cor); }
+.ap-sensor-nome { color: #cbd5e1; }
+.ap-sensor-valor { color: #fff; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ===== EQUIPE ===== */
+.ap-equipe-conteudo {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(16px, 3.4vh, 40px);
+  width: min(1400px, 90vw);
+}
+.ap-equipe-topo { text-align: center; }
+.ap-equipe-sobretitulo {
+  display: block;
+  margin-bottom: 10px;
+  color: #22d3ee;
+  font-size: clamp(0.8rem, 1vw, 1rem);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.ap-equipe-titulo {
+  margin: 0;
+  font-size: clamp(2.2rem, 4.4vw, 4.6rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.ap-grupos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2vw, 28px); }
+.ap-grupo {
+  padding: clamp(16px, 2.2vw, 28px);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(15, 30, 62, 0.8), rgba(8, 16, 36, 0.62));
+}
+.ap-grupo-titulo {
+  margin: 0;
+  color: var(--cor);
+  font-size: clamp(0.8rem, 0.95vw, 1rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ap-grupo-linha {
+  display: block;
+  height: 2px;
+  margin: 12px 0 16px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--cor), transparent);
+}
+.ap-grupo ul { display: grid; gap: clamp(6px, 1.1vh, 12px); margin: 0; padding: 0; list-style: none; }
+.ap-grupo-nome { color: #f8fafc; font-size: clamp(1.05rem, 1.5vw, 1.6rem); font-weight: 600; }
+.ap-equipe-rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }
+.ap-orientadores { margin: 0; color: #f8fafc; font-size: clamp(1.05rem, 1.5vw, 1.5rem); font-weight: 600; }
+.ap-orientadores span {
+  display: block;
+  margin-bottom: 6px;
+  color: #94a3b8;
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.ap-marca-rodape { width: clamp(150px, 14vw, 240px); margin-bottom: clamp(10px, 1.6vw, 22px); }
+
+/* ===== SAIR ===== aparece quando o mouse se mexe ou com foco do teclado. */
+.ap-sair {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 1001;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  background: rgba(6, 13, 31, 0.78);
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+body.modo-apresentacao:not(.cursor-oculto) .ap-sair,
+.ap-sair:focus-visible { opacity: 1; }
+.ap-sair kbd {
+  padding: 1px 6px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 6px;
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .ap-grupos { grid-template-columns: 1fr; }
+  .ap-equipe-rodape { justify-content: center; text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-sair { transition: none; }
+}

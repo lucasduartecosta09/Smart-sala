@@ -161,6 +161,8 @@ test('a ilha liga a rotação ao carrossel, respeita movimento reduzido e silenc
   assert.match(carouselSource, /rotacao\.definir\('detalhes'/);
   assert.match(carouselSource, /live=\{estadoRotacao\.rodando \? 'off' : 'polite'\}/);
   assert.match(carouselSource, /onClick=\{\(\) => rotacao\.alternar\('usuario'\)\}/);
+  // O botão discreto só mostra o ícone: o nome acessível precisa continuar dizendo o que ele faz.
+  assert.match(carouselSource, /aria-label=\{pausadaPeloUsuario \? 'Retomar rotação automática' : 'Pausar rotação automática'\}/);
   assert.match(circularSource, /aria-live=\{live\}/);
 });
 
@@ -186,5 +188,10 @@ test('créditos do projeto aparecem na tela da roleta e os ícones do botão exi
   ]);
   assert.ok(document.getElementById('i-pausa'));
   assert.ok(document.getElementById('i-play'));
-  assert.match(document.querySelector('.carousel-cabecalho p').textContent, /10 segundos/);
+  assert.ok(creditos.classList.contains('so-apresentacao'), 'os créditos só aparecem no modo apresentação');
+  assert.equal(
+    document.querySelector('.carousel-cabecalho p.so-normal').textContent.trim(),
+    'Passe o cursor sobre um cartão para girar a roleta. Dê um duplo clique para ampliar.',
+    'desligado, o cabeçalho volta ao texto de antes'
+  );
 });

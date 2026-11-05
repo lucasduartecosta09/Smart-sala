@@ -38,6 +38,8 @@
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/></symbol>
   <symbol id="i-pausa" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 4.8v14.4a1 1 0 0 0 1.53.85l11.2-7.2a1 1 0 0 0 0-1.7L9.03 3.95a1 1 0 0 0-1.53.85z"/></symbol>
+  <symbol id="i-apresentacao" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M10 7.5v5l4.5-2.5z"/></symbol>
+  <symbol id="i-fechar" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
   <symbol id="i-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
   <symbol id="i-onda" viewBox="0 0 24 24"><path d="M2 10v4M6 6v12M10 3v18M14 8v8M18 5v14M22 10v4"/></symbol>
   <symbol id="i-trend-up" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
@@ -118,6 +120,11 @@
       <button class="aba-btn" id="aba-btn-config" data-aba="config" type="button" role="tab" aria-controls="aba-config" aria-selected="false" tabindex="-1"><svg class="ico"><use href="#i-ajustes"/></svg>Configurações</button>
     </nav>
 
+    <button class="btn apresentacao-btn" id="btn-apresentacao" type="button" aria-pressed="false">
+      <svg class="ico" aria-hidden="true"><use href="#i-apresentacao"/></svg>
+      <span>Modo apresentação</span>
+    </button>
+
     <div class="sidebar-acoes">
     <button class="btn tema-btn" id="btn-tema" type="button">
       <svg class="ico ico-sol"><use href="#i-sol"/></svg>
@@ -179,9 +186,18 @@
         <div class="carousel-cabecalho">
           <div>
             <h1 id="carousel-titulo">Monitoramento dos sensores</h1>
-            <p>A roleta gira sozinha a cada 10 segundos. Passe o cursor sobre um cartão para escolhê-lo e dê um duplo clique para ampliar.</p>
+            <p class="so-normal">Passe o cursor sobre um cartão para girar a roleta. Dê um duplo clique para ampliar.</p>
+            <p class="so-apresentacao">Sala SENAI Smart Class · temperatura, umidade, ocupação e luminosidade em um só painel.</p>
           </div>
-          <span class="carousel-sala">Sala SENAI Smart Class</span>
+          <span class="carousel-sala so-normal">Sala SENAI Smart Class</span>
+          <div class="marca-senai so-apresentacao" role="img" aria-label="SENAI – Serviço Nacional de Aprendizagem Industrial">
+            <img class="marca-senai__img marca-senai__img--negativa" src="assets/senai-marca-negativa.png" alt="" width="1575" height="265" loading="lazy" decoding="async">
+            <img class="marca-senai__img marca-senai__img--cor" src="assets/senai-marca.png" alt="" width="1575" height="265" loading="lazy" decoding="async">
+            <span class="marca-senai__reflexo" aria-hidden="true">
+              <img class="marca-senai__img marca-senai__img--negativa" src="assets/senai-marca-negativa.png" alt="" width="1575" height="265" loading="lazy" decoding="async">
+              <img class="marca-senai__img marca-senai__img--cor" src="assets/senai-marca.png" alt="" width="1575" height="265" loading="lazy" decoding="async">
+            </span>
+          </div>
         </div>
         <div id="dashboard-carousel-root"></div>
         <nav id="carousel-fallback" class="carousel-atalhos" aria-label="Escolher gráfico principal">
@@ -190,7 +206,7 @@
           <button class="btn" type="button" data-dashboard-metric="pessoas" aria-pressed="false">Ocupação</button>
           <button class="btn" type="button" data-dashboard-metric="luminosidade" aria-pressed="false">Luminosidade</button>
         </nav>
-        <footer class="carousel-creditos">
+        <footer class="carousel-creditos so-apresentacao">
           <dl>
             <div class="creditos-grupo">
               <dt>Desenvolvido por</dt>
