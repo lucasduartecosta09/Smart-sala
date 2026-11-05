@@ -147,6 +147,33 @@ body.modo-apresentacao.cursor-oculto * { cursor: none !important; }
 }
 .ap-abertura-titulo em { font-style: normal; color: #22d3ee; }
 .ap-abertura-subtitulo { margin: 0; font-size: clamp(1rem, 1.55vw, 1.55rem); color: #b6c3d6; }
+/* Com o Arduino conectado, a abertura avisa que os números são ao vivo. */
+.ap-ao-vivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 16px;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.1);
+  color: #6ee7b7;
+  font-size: clamp(0.85rem, 1vw, 1.05rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ap-ao-vivo-ponto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: ap-ao-vivo-pulso 1.6s ease-in-out infinite;
+}
+@keyframes ap-ao-vivo-pulso {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
 .ap-sensores {
   display: flex;
   flex-wrap: wrap;
@@ -271,4 +298,5 @@ body.modo-apresentacao:not(.cursor-oculto) .ap-sair,
 }
 @media (prefers-reduced-motion: reduce) {
   .ap-sair { transition: none; }
+  .ap-ao-vivo-ponto { animation: none; }
 }

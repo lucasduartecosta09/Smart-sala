@@ -21,7 +21,7 @@
         },
         {
           "key": "Permissions-Policy",
-          "value": "camera=(), geolocation=(), microphone=(self), payment=(), usb=()"
+          "value": "camera=(), geolocation=(), microphone=(self), payment=(), usb=(), serial=(self)"
         },
         {
           "key": "X-Frame-Options",

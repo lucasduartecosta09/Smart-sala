@@ -40,6 +40,9 @@ test('Vercel entrega a mesma CSP e impede incorporação em iframe', () => {
   assert.equal(headers['X-Robots-Tag'], 'noindex, nofollow, noarchive');
   assert.match(headers['Permissions-Policy'], /camera=\(\)/);
   assert.match(headers['Permissions-Policy'], /microphone=\(self\)/);
+  // Arduino: só a porta serial do próprio site; WebUSB continua bloqueado.
+  assert.match(headers['Permissions-Policy'], /serial=\(self\)/);
+  assert.match(headers['Permissions-Policy'], /usb=\(\)/);
 });
 test('login usa gateway com limite no servidor e não autentica diretamente no navegador', () => {
   assert.match(authSource, /functions\.invoke\("senai-login"/);

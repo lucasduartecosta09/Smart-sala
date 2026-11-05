@@ -1,0 +1,194 @@
+/* ===== SALA CONECTADA: Arduino na USB e controle pelo celular =====
+   Selo da origem dos dados, botão do Arduino na barra lateral e cartões de Configurações. */
+
+/* Selo no cabeçalho dos sensores: "Ao vivo · Arduino", "Dados simulados"... */
+.carousel-cabecalho .fonte-dados {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 4px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--suave);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.fonte-dados-ponto {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.carousel-cabecalho .fonte-dados[data-tipo="ao-vivo"] {
+  color: var(--cor-pessoas);
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(52, 211, 153, 0.1);
+}
+.fonte-dados[data-tipo="ao-vivo"] .fonte-dados-ponto::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  animation: fonte-dados-pulso 1.8s cubic-bezier(0.2, 0, 0, 1) infinite;
+}
+.carousel-cabecalho .fonte-dados[data-tipo="aguardando"] {
+  color: var(--ciano);
+  border-color: var(--borda-hover);
+}
+.carousel-cabecalho .fonte-dados[data-tipo="alerta"] {
+  color: var(--aviso);
+  border-color: rgba(251, 146, 60, 0.45);
+  background: var(--aviso-bg);
+}
+body.modo-apresentacao .carousel-cabecalho .fonte-dados { font-size: 0.9rem; padding: 5px 14px; }
+
+@keyframes fonte-dados-pulso {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(2.8); opacity: 0; }
+}
+
+/* Botão do Arduino na barra lateral, acima de "Modo apresentação". */
+.arduino-btn {
+  margin-top: auto;
+  border-radius: 12px;
+  padding: 11px 14px;
+  justify-content: center;
+}
+.arduino-btn + .apresentacao-btn { margin-top: 0; }
+.arduino-btn[hidden] + .apresentacao-btn { margin-top: auto; }
+@media (max-width: 900px) {
+  .arduino-btn { display: none; }
+}
+
+.sala-led {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--suave);
+  opacity: 0.7;
+}
+.sala-botao[data-estado="ligado"] .sala-led {
+  background: #34d399;
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.8);
+}
+.sala-botao[data-estado="aguardando"] .sala-led { background: var(--ciano); opacity: 1; }
+.sala-botao[data-estado="alerta"] .sala-led { background: var(--aviso); opacity: 1; }
+.btn.primario.sala-botao .sala-led { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
+
+/* Cartões de Configurações. */
+.sala-card {
+  max-width: 560px;
+  margin-top: 18px;
+}
+.sala-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+.sala-card h3 .ico { width: 20px; height: 20px; color: var(--ciano); }
+.sala-card .linha-botoes { margin: 12px 0; }
+.sala-situacao {
+  margin: 0;
+  color: var(--texto-forte);
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.sala-situacao:empty { display: none; }
+.sala-bloco + .sala-bloco {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--borda);
+}
+.sala-bloco[hidden] + .sala-bloco { margin-top: 0; padding-top: 0; border-top: 0; }
+.sala-bloco h4 { margin: 0 0 6px; font-size: 0.98rem; }
+
+.sala-codigo {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 12px;
+  padding: 14px 16px;
+  border: 1px dashed var(--borda-hover);
+  border-radius: var(--raio-sm);
+  background: var(--chip);
+}
+.sala-codigo .legenda { margin: 0; font-size: 0.8rem; }
+.sala-codigo .linha-botoes { margin: 6px 0 0; gap: 10px; }
+.sala-codigo-valor {
+  color: var(--texto-forte);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  font-size: clamp(1.1rem, 4.4vw, 1.55rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+.sala-form { display: grid; gap: 8px; margin-top: 8px; }
+.sala-form label { font-size: 0.92rem; font-weight: 500; }
+.sala-form-linha { display: flex; flex-wrap: wrap; gap: 10px; }
+.sala-form input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro);
+  color: var(--texto-forte);
+  font: inherit;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sala-form input::placeholder { color: var(--suave); opacity: 0.7; }
+.sala-form input:focus-visible { outline: 2px solid var(--borda-foco); outline-offset: 2px; }
+
+.luminaria-pir { margin: 12px 0 0; font-size: 0.86rem; }
+
+/* Aviso de pedido do celular (ou de palmas): aparece também por cima do modo apresentação. */
+.sala-aviso {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 1003;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(92vw, 640px);
+  padding: 12px 22px 12px 16px;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  border-radius: 999px;
+  background: rgba(6, 13, 31, 0.92);
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.6);
+  color: #f1f5f9;
+  font-size: 1.05rem;
+  font-weight: 700;
+  transform: translate(-50%, 0);
+  pointer-events: none;
+}
+.sala-aviso[hidden] { display: none; }
+.sala-aviso .ico { flex: none; width: 22px; height: 22px; color: #34d399; }
+/* Na apresentação, fica acima da faixa de créditos. */
+body.modo-apresentacao .sala-aviso { bottom: 16vh; padding: 16px 30px 16px 22px; font-size: clamp(1.15rem, 1.8vw, 1.7rem); }
+body.modo-apresentacao .sala-aviso .ico { width: 30px; height: 30px; }
+
+@media (max-width: 600px) {
+  .sala-card .linha-botoes .btn { flex: 1 1 100%; }
+  .sala-form-linha .btn { flex: 1 1 100%; }
+  /* Espaço para o botão flutuante do microfone não cobrir o último botão. */
+  #remoto-card { margin-bottom: 96px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fonte-dados[data-tipo="ao-vivo"] .fonte-dados-ponto::after { animation: none; }
+}

@@ -26,7 +26,9 @@ const estado = {
   tempAlta: 28,
   luxBaixa: 40,
   autoRefresh: false,
-  intervalo: 5
+  intervalo: 5,
+  // "simulado" (original), "arduino" (USB neste computador) ou "remoto" (sala de outro computador).
+  fonte: "simulado"
 };
 
 let temporizador = null;
@@ -96,9 +98,18 @@ function lerSensores(anterior = null) {
   };
 }
 
-// Atualmente registra comandos simulados.
-// A integração com Arduino pode ser adicionada aqui.
+// Simulado, só registra o comando. Com o Arduino ou a sala remota, envia de verdade.
 function enviarComando(chave, valor) {
+  if (estado.fonte !== "simulado") {
+    const acoes = { ventiladorLigado: "ventilador", ledsLigados: "luz", servoAberto: "porta" };
+    if (chave === "servoAberto" && !portaDisponivel()) {
+      registrarEvento("A porta não tem servo neste Arduino: grave o firmware v3.7 para usar o servo");
+    } else if (acoes[chave]) {
+      comandarSala(acoes[chave], valor, chave);
+    }
+    return;
+  }
+
   const prefixos = {
     ventiladorLigado: "VENTILADOR_DC",
     ledsLigados: "LEDS",
@@ -112,13 +123,13 @@ function enviarComando(chave, valor) {
 // EVENTOS E CONTROLES
 // ==========================================
 
-function registrarEvento(texto) {
+function registrarEvento(texto, { salvar = true } = {}) {
   const hora = new Date().toLocaleTimeString("pt-BR");
 
   estado.eventos.unshift({ hora, texto });
   estado.eventos.splice(LIMITE_EVENTOS);
 
-  if (window.senaiAuth && typeof window.senaiAuth.saveEvent === "function") {
+  if (salvar && window.senaiAuth && typeof window.senaiAuth.saveEvent === "function") {
     window.senaiAuth.saveEvent(texto);
   }
 }
@@ -138,6 +149,9 @@ function definir(chave, valor, motivo) {
 }
 
 function aplicarAutomacao(leitura) {
+  // Com o Arduino (aqui ou na sala remota), a automação roda no próprio firmware.
+  if (estado.fonte !== "simulado") return;
+
   const temGente = leitura.pessoas > 0;
 
   if (!temGente) {
@@ -163,6 +177,9 @@ function aplicarAutomacao(leitura) {
 }
 
 function atualizarSensores() {
+  // Leituras reais chegam sozinhas do Arduino ou da sala remota: nada é simulado.
+  if (estado.fonte !== "simulado") return;
+
   estado.sensores = lerSensores(estado.sensores);
 
   estado.historico.push({
@@ -181,6 +198,7 @@ function atualizarSensores() {
   if (window.senaiAuth && typeof window.senaiAuth.saveReading === "function") {
     window.senaiAuth.saveReading(estado.sensores);
   }
+  avisarPonte();
 }
 
 function inicializarHistorico(quantidade = 16) {
@@ -214,6 +232,8 @@ function inicializarHistorico(quantidade = 16) {
 
 function atualizarAgora() {
   atualizarSensores();
+  // Na sala remota, "Atualizar" pede de novo o estado ao computador da sala.
+  if (estado.fonte === "remoto") pedirEstadoDaSala();
   desenhar();
 }
 
@@ -238,6 +258,9 @@ function mudarModoAuto(ligado, motivo = "manual") {
     aplicarAutomacao(estado.sensores);
   }
 
+  // Com o Arduino, quem liga e desliga a automação é o firmware (AUTO/MANUAL).
+  comandarSala("modo", ligado, "modoAuto");
+
   desenhar();
 }
 
@@ -261,13 +284,29 @@ function mudarAtualizacaoAutomatica(ligado, motivo = "manual") {
 }
 
 function desligarTudo() {
-  if (estado.modoAuto) {
-    mudarModoAuto(false, "desligar tudo");
+  // No celular, os passos abaixo só atualizam a tela; a sala recebe um único "desligar tudo".
+  const remoto = estado.fonte === "remoto";
+  agrupandoComandosSala = remoto;
+  try {
+    if (estado.modoAuto) {
+      mudarModoAuto(false, "desligar tudo");
+    }
+
+    definir("ventiladorLigado", false, "desligar tudo");
+    definir("ledsLigados", false, "desligar tudo");
+    definir("servoAberto", false, "desligar tudo");
+  } finally {
+    agrupandoComandosSala = false;
   }
 
-  definir("ventiladorLigado", false, "desligar tudo");
-  definir("ledsLigados", false, "desligar tudo");
-  definir("servoAberto", false, "desligar tudo");
+  if (remoto) {
+    comandarSala("desligar-tudo", true);
+  } else if (estado.fonte === "arduino" && podeOperarSala()) {
+    // O painel pode estar um instante atrás do Arduino: manda os comandos mesmo assim.
+    comandarSala("modo", false, "modoAuto");
+    comandarSala("ventilador", false, "ventiladorLigado");
+    comandarSala("luz", false, "ledsLigados");
+  }
 
   desenhar();
 }
@@ -621,16 +660,21 @@ function configurarTemporizador() {
 
 function calcularAlertas(sensor) {
   const alertas = [];
+  const temDht = Number.isFinite(sensor.temperatura) && Number.isFinite(sensor.umidade);
 
-  if (sensor.temperatura >= estado.tempAlta) {
+  if (!temDht) {
+    alertas.push("Sensor DHT11 sem leitura: confira os fios do sensor");
+  }
+
+  if (temDht && sensor.temperatura >= estado.tempAlta) {
     alertas.push("Temperatura muito alta");
   }
 
-  if (sensor.umidade < 40) {
+  if (temDht && sensor.umidade < 40) {
     alertas.push("Ar muito seco");
   }
 
-  if (sensor.umidade > 75) {
+  if (temDht && sensor.umidade > 75) {
     alertas.push("Umidade muito alta");
   }
 
@@ -658,6 +702,33 @@ const METRICAS_GRAFICOS = {
   pessoas: { titulo: "ocupação da sala", unidade: "pessoas", casas: 0, amplitudeMinima: 6, cor: "--cor-pessoas", fallback: "#34d399" },
   luminosidade: { titulo: "luminosidade", unidade: "%", casas: 0, amplitudeMinima: 10, cor: "--cor-luminosidade", fallback: "#c4b5fd" }
 };
+// Com o Arduino, o PIR só diz se há presença (0/1) e o LDR digital só diz claro ou escuro (0/100).
+const METRICAS_ARDUINO = {
+  pessoas: {
+    titulo: "presença na sala", unidade: "", amplitudeMinima: 1,
+    binario: { maximo: 1, rotulos: ["Vazia", "Ocupada"], eixo: ["Não", "Sim"], media: "ocupada", subindo: "Chegou alguém", caindo: "Ficou vazia" }
+  },
+  luminosidade: {
+    titulo: "luminosidade", unidade: "", amplitudeMinima: 100,
+    binario: { maximo: 100, rotulos: ["Escuro", "Claro"], eixo: ["Escuro", "Claro"], media: "claro", subindo: "Clareou", caindo: "Escureceu" }
+  }
+};
+
+function dadosDoArduino() {
+  return estado.fonte === "arduino" || (estado.fonte === "remoto" && salaControle.fonteSala === "arduino");
+}
+
+function configuracaoMetrica(chave) {
+  const base = METRICAS_GRAFICOS[chave];
+  return dadosDoArduino() && METRICAS_ARDUINO[chave] ? { ...base, ...METRICAS_ARDUINO[chave] } : base;
+}
+
+function formatarValorMetrica(metrica, valor) {
+  if (!Number.isFinite(valor)) return "--";
+  if (metrica.binario) return metrica.binario.rotulos[valor >= metrica.binario.maximo / 2 ? 1 : 0];
+  return valor.toFixed(metrica.casas) + " " + metrica.unidade;
+}
+
 let metricaPrincipal = "temperatura";
 let visualizacaoDashboard = "roleta";
 let animacaoAberturaDashboard = null;
@@ -679,11 +750,11 @@ function atualizarTitulosPagina() {
   };
   const subtitulos = {
     sensores: "Monitoramento inteligente",
-    controles: "Operação dos equipamentos simulados",
+    controles: estado.fonte === "simulado" ? "Operação dos equipamentos simulados" : "Operação dos equipamentos do Arduino",
     config: "Regras e atualização do painel",
     conta: "Dados do usuário e permissões"
   };
-  const tituloHistorico = `Histórico de ${METRICAS_GRAFICOS[metricaPrincipal].titulo}`;
+  const tituloHistorico = `Histórico de ${configuracaoMetrica(metricaPrincipal).titulo}`;
   const tituloDetalhes = $("dashboard-detalhes-titulo");
   if (tituloDetalhes) tituloDetalhes.textContent = tituloHistorico;
   const aba = document.body.dataset.abaAtiva || "sensores";
@@ -705,9 +776,11 @@ function emitirEstadoDashboard() {
       principal: metricaPrincipal,
       visualizacao: visualizacaoDashboard,
       sensores,
+      fonte: dadosDoArduino() ? "arduino" : "simulado",
       historico: estado.historico.map((leitura) => ({ ...leitura, hora: Number(leitura.hora) }))
     }
   }));
+  avisarPonte();
 }
 
 function selecionarMetricaPrincipal(chave) {
@@ -952,11 +1025,11 @@ function desenharGrafico(canvas, registros, configuracao) {
 
   if (areaLargura <= 0 || areaAltura <= 0) return;
 
-  const escala = calcularEscala(
-    valores,
-    amplitudeMinima,
-    casas === 0
-  );
+  const binario = configuracao.binario || null;
+  // Sensor digital: o eixo vai sempre de "não" a "sim" (ou de escuro a claro).
+  const escala = binario
+    ? { minimo: 0, maximo: binario.maximo }
+    : calcularEscala(valores, amplitudeMinima, casas === 0);
   const minimo = escala.minimo;
   const maximo = escala.maximo;
 
@@ -976,7 +1049,7 @@ function desenharGrafico(canvas, registros, configuracao) {
   ctx.textBaseline = "top";
   ctx.fillText(unidade.trim(), margem.esquerda, 4);
 
-  const quantidadeGrades = 4;
+  const quantidadeGrades = binario ? 1 : 4;
   ctx.lineWidth = 1;
 
   for (let i = 0; i <= quantidadeGrades; i++) {
@@ -995,7 +1068,7 @@ function desenharGrafico(canvas, registros, configuracao) {
     ctx.font = "11px system-ui, sans-serif";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillText(valor.toFixed(casas), margem.esquerda - 8, py);
+    ctx.fillText(binario ? binario.eixo[i] : valor.toFixed(casas), margem.esquerda - 8, py);
   }
 
   if (horarios.length > 1) {
@@ -1132,7 +1205,8 @@ function desenharGrafico(canvas, registros, configuracao) {
     areaAltura,
     casas,
     unidade,
-    cor
+    cor,
+    formatar: (valor) => formatarValorMetrica(configuracao, valor)
   });
 }
 
@@ -1145,7 +1219,8 @@ function atualizarKpisGrafico(valores, sensor, indiceAtual = valores.length - 1)
     return;
   }
 
-  const { casas, unidade } = METRICAS_GRAFICOS[sensor];
+  const metrica = configuracaoMetrica(sensor);
+  const { binario } = metrica;
   const prefixo = `graf-${sensor}`;
   const minimo = Math.min(...valores);
   const maximo = Math.max(...valores);
@@ -1159,19 +1234,22 @@ function atualizarKpisGrafico(valores, sensor, indiceAtual = valores.length - 1)
     if (elemento) elemento.textContent = texto;
   };
 
-  preencher(`${prefixo}-atual`, atual.toFixed(casas) + " " + unidade);
-  preencher(`${prefixo}-min`, minimo.toFixed(casas) + " " + unidade);
-  preencher(`${prefixo}-med`, media.toFixed(casas) + " " + unidade);
-  preencher(`${prefixo}-max`, maximo.toFixed(casas) + " " + unidade);
+  preencher(`${prefixo}-atual`, formatarValorMetrica(metrica, atual));
+  preencher(`${prefixo}-min`, formatarValorMetrica(metrica, minimo));
+  // Num sensor digital, a média vira a parte do tempo em que ele ficou "sim".
+  preencher(`${prefixo}-med`, binario
+    ? `${Math.round((media / binario.maximo) * 100)} % ${binario.media}`
+    : formatarValorMetrica(metrica, media));
+  preencher(`${prefixo}-max`, formatarValorMetrica(metrica, maximo));
 
   const tendencia = $(`${prefixo}-tend-texto`);
   const tendenciaPai = $(`${prefixo}-tend`);
 
   if (tendencia && tendenciaPai) {
     tendencia.textContent = diferenca > 0.05
-      ? "Subindo"
+      ? (binario ? binario.subindo : "Subindo")
       : diferenca < -0.05
-        ? "Caindo"
+        ? (binario ? binario.caindo : "Caindo")
         : "Estável";
     tendenciaPai.className = "kpi-valor kpi-tendencia " +
       (diferenca > 0.05
@@ -1198,7 +1276,8 @@ function desenharGraficos() {
   const descricaoContexto = $("complementares-contexto");
   if (descricaoContexto) descricaoContexto.textContent = "";
 
-  for (const [chave, metrica] of Object.entries(METRICAS_GRAFICOS)) {
+  for (const chave of Object.keys(METRICAS_GRAFICOS)) {
+    const metrica = configuracaoMetrica(chave);
     const canvas = $(`grafico-${chave}`);
     if (!canvas) continue;
 
@@ -1216,7 +1295,7 @@ function desenharGraficos() {
     atualizarKpisGrafico(valores, chave, indiceAtual);
 
     if (valores.length) {
-      canvas.setAttribute("aria-label", `Histórico de ${metrica.titulo}. ${principal ? "Atual" : "No ponto"}: ${valores[indiceAtual].toFixed(metrica.casas)} ${metrica.unidade}. ${valores.length} leituras ${principal ? "no período exibido" : "na janela contextual"}.`);
+      canvas.setAttribute("aria-label", `Histórico de ${metrica.titulo}. ${principal ? "Atual" : "No ponto"}: ${formatarValorMetrica(metrica, valores[indiceAtual])}. ${valores.length} leituras ${principal ? "no período exibido" : "na janela contextual"}.`);
     } else {
       const ctx = canvas.getContext("2d");
       if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1236,9 +1315,13 @@ function desenharGraficos() {
 
   const atualizacao = $("historico-atualizacao");
   if (atualizacao) {
-    atualizacao.textContent = estado.autoRefresh
-      ? `Atualização automática a cada ${estado.intervalo} s`
-      : "Atualização manual";
+    atualizacao.textContent = estado.fonte === "arduino"
+      ? "Ao vivo do Arduino, a cada 2 s"
+      : estado.fonte === "remoto"
+        ? "Ao vivo da sala remota"
+        : estado.autoRefresh
+          ? `Atualização automática a cada ${estado.intervalo} s`
+          : "Atualização manual";
   }
   atualizarLeituraDestacada();
 }
@@ -1298,7 +1381,9 @@ function atualizarLeituraDestacada() {
       marcador.style.top = ponto[1] + "px";
     }
     const valorEl = document.createElement("strong");
-    valorEl.textContent = dados.valores[indiceLocal].toFixed(dados.casas) + " " + dados.unidade;
+    valorEl.textContent = dados.formatar
+      ? dados.formatar(dados.valores[indiceLocal])
+      : dados.valores[indiceLocal].toFixed(dados.casas) + " " + dados.unidade;
     const horaEl = document.createElement("span");
     horaEl.textContent = formatarHorario(leitura.hora);
     tooltip.replaceChildren(valorEl, horaEl);
@@ -1316,11 +1401,11 @@ function atualizarLeituraDestacada() {
 
   const resumo = $("historico-selecao");
   if (resumo) {
-    const metrica = METRICAS_GRAFICOS[metricaPrincipal];
+    const metrica = configuracaoMetrica(metricaPrincipal);
     resumo.dataset.fixado = String(visaoHistorico.fixado);
     resumo.textContent = leitura
       ? `${visaoHistorico.fixado ? "Leitura fixada" : "Leitura"} em ${leitura.hora.toLocaleString("pt-BR")} · ` +
-        `${metrica.titulo}: ${leitura[metricaPrincipal].toFixed(metrica.casas)} ${metrica.unidade}`
+        `${metrica.titulo}: ${formatarValorMetrica(metrica, leitura[metricaPrincipal])}`
       : "Nenhuma leitura selecionada.";
   }
 }
@@ -1474,27 +1559,35 @@ function desenhar() {
   const s = estado.sensores;
   const hist = estado.historico;
 
-  if (!s || hist.length === 0) {
+  atualizarInterfaceSala();
+
+  // Ao vivo, o painel aparece mesmo antes da primeira leitura válida do DHT11.
+  if (!s || (hist.length === 0 && estado.fonte === "simulado")) {
     agendarRedesenhoGraficos();
     return;
   }
 
   const alertas = calcularAlertas(s);
+  const digital = dadosDoArduino();
 
-  $("m-temp").textContent = `${s.temperatura.toFixed(1)} °C`;
-  $("m-umid").textContent = `${s.umidade} %`;
-  $("m-lux").textContent = `${s.luminosidade} %`;
+  $("m-temp").textContent = Number.isFinite(s.temperatura) ? `${s.temperatura.toFixed(1)} °C` : "--";
+  $("m-umid").textContent = Number.isFinite(s.umidade) ? `${s.umidade} %` : "--";
+  $("m-lux").textContent = digital
+    ? formatarValorMetrica(configuracaoMetrica("luminosidade"), s.luminosidade)
+    : `${s.luminosidade} %`;
 
   const presenca = $("m-presenca");
   presenca.textContent = s.pessoas > 0 ? "Ocupada" : "Vazia";
   presenca.dataset.ocupada = String(s.pessoas > 0);
-  $("m-pessoas").nextElementSibling.textContent = s.pessoas === 1 ? "pessoa" : "pessoas";
+  $("m-pessoas").nextElementSibling.textContent = digital ? "" : s.pessoas === 1 ? "pessoa" : "pessoas";
+  const rotuloPessoas = $("m-pessoas-rotulo");
+  if (rotuloPessoas) rotuloPessoas.textContent = digital ? "Presença na sala (PIR)" : "Pessoas na sala";
 
   const anterior = hist.length > 1
     ? hist[hist.length - 2]
     : null;
 
-  const difTemp = anterior
+  const difTemp = anterior && Number.isFinite(s.temperatura) && Number.isFinite(anterior.temperatura)
     ? arredondar(s.temperatura - anterior.temperatura)
     : null;
 
@@ -1505,9 +1598,10 @@ function desenhar() {
     true
   );
 
-  $("m-pessoas").textContent = s.pessoas;
+  // O PIR não conta pessoas: com o Arduino, o cartão mostra só se há presença.
+  $("m-pessoas").textContent = digital ? (s.pessoas > 0 ? "Detectada" : "Nenhuma") : s.pessoas;
 
-  const difPessoas = anterior
+  const difPessoas = anterior && !digital
     ? s.pessoas - anterior.pessoas
     : null;
 
@@ -1560,9 +1654,26 @@ function desenhar() {
 
   const btnVentilador = $("btn-ventilador");
   const btnLeds = $("btn-leds");
+  // Equipamentos reais só obedecem a professores e administradores.
+  const somenteLeitura = estado.fonte !== "simulado" && !podeOperarSala();
 
-  if (btnVentilador) btnVentilador.disabled = estado.modoAuto;
-  if (btnLeds) btnLeds.disabled = estado.modoAuto;
+  if (btnVentilador) btnVentilador.disabled = estado.modoAuto || somenteLeitura;
+  if (btnLeds) btnLeds.disabled = estado.modoAuto || somenteLeitura;
+
+  const btnServo = $("btn-servo");
+  const semServo = !portaDisponivel();
+  if (btnServo) {
+    btnServo.disabled = semServo || somenteLeitura;
+    if (semServo) btnServo.title = "Grave o firmware v3.7 no Arduino para usar o servo da porta.";
+    else btnServo.removeAttribute("title");
+  }
+  if (semServo) mostrarPill("pill-servo", false, "", "SEM SERVO");
+
+  const luminaria = $("luminaria-pir");
+  if (luminaria) {
+    luminaria.hidden = !digital;
+    $("luminaria-pir-estado").textContent = luminariaDaSala() ? "ligada" : "desligada";
+  }
 
   // Registro de eventos.
   const lista = $("lista-eventos");
@@ -2064,6 +2175,15 @@ function iniciar() {
     desenhar();
   });
 
+  // Ao soltar o controle, a regra nova vai para o Arduino (direto ou pela sala remota).
+  $("temp-alta").addEventListener("change", () => {
+    comandarSala("limiar-temperatura", estado.tempAlta);
+  });
+
+  $("lux-baixa").addEventListener("change", () => {
+    comandarSala("limiar-luz", estado.luxBaixa);
+  });
+
   $("auto-refresh").addEventListener("change", (evento) => {
     mudarAtualizacaoAutomatica(evento.target.checked);
   });
@@ -2145,6 +2265,7 @@ function iniciar() {
   configurarVoz();
   if (typeof aprimorarWidgetVoz === "function") aprimorarWidgetVoz();
   if (typeof aprimorarVozConversa === "function") aprimorarVozConversa();
+  configurarSala();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -3271,3 +3392,870 @@ function aplicarBloqueioModoAuto() {
 }
 
 document.addEventListener("DOMContentLoaded", aplicarBloqueioModoAuto);
+
+// ==========================================
+// SALA CONECTADA: ARDUINO NA USB E CONTROLE PELO CELULAR
+// ==========================================
+// "arduino": este computador lê o Arduino pela USB (arduino.js) e o firmware roda a automação.
+// Ponte: este computador também atende o celular pela internet (remoto.js).
+// "remoto": este aparelho (o celular) espelha e comanda a sala de outro computador.
+
+const ESPERA_CONFIRMACAO_MS = 4000;
+const LEITURA_ATRASADA_MS = 8000;
+const DHT_TOLERANCIA_MS = 10000;
+const SALA_SEM_SINAL_MS = 12000;
+const SINAL_CELULAR_MS = 25000;
+const CHAVE_PONTE = "smartclass:ponte";
+
+const salaArduino = {
+  conexao: null,
+  estado: "desconectado",
+  firmware: null,
+  mensagem: "",
+  conectadoEm: 0,
+  ultimaLeitura: 0,
+  ultimaValidaDht: null,
+  ultimoRegistro: 0,
+  primeiraLeitura: true,
+  configuracaoEnviada: false,
+  gravarNoBanco: true,
+  dhtValido: true,
+  luminaria: false,
+  temPorta: false
+};
+
+const salaPonte = {
+  sala: null,
+  codigo: null,
+  estado: "desligada",
+  mensagem: "",
+  aviso: null,
+  ultimoCelular: 0,
+  ultimoEnvio: 0,
+  envio: null,
+  // A tela do notebook costuma estar espelhada na TV: o código só aparece se alguém pedir.
+  mostrarCodigo: false
+};
+let temporizadorAvisoTela = null;
+
+// Aviso rápido na tela (e na TV espelhada) quando um pedido chega do celular ou das palmas.
+function avisarNaTela(texto) {
+  let aviso = document.getElementById("sala-aviso");
+  if (!aviso) {
+    aviso = document.createElement("div");
+    aviso.id = "sala-aviso";
+    aviso.className = "sala-aviso";
+    aviso.setAttribute("role", "status");
+    aviso.setAttribute("aria-live", "polite");
+    const icone = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icone.setAttribute("class", "ico");
+    icone.setAttribute("aria-hidden", "true");
+    const uso = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    uso.setAttribute("href", "#i-celular");
+    icone.appendChild(uso);
+    const conteudo = document.createElement("span");
+    conteudo.className = "sala-aviso-texto";
+    aviso.append(icone, conteudo);
+    document.body.appendChild(aviso);
+  }
+  aviso.querySelector(".sala-aviso-texto").textContent = texto;
+  aviso.hidden = false;
+  const reduzido = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  if (!reduzido && typeof aviso.animate === "function") {
+    aviso.animate(
+      [{ opacity: 0, transform: "translate(-50%, 14px) scale(0.96)" }, { opacity: 1, transform: "translate(-50%, 0) scale(1)" }],
+      { duration: 280, easing: "cubic-bezier(0.2, 0, 0, 1)" }
+    );
+  }
+  clearTimeout(temporizadorAvisoTela);
+  temporizadorAvisoTela = setTimeout(() => {
+    const esconder = () => { aviso.hidden = true; };
+    if (!reduzido && typeof aviso.animate === "function") {
+      aviso.animate(
+        [{ opacity: 1, transform: "translate(-50%, 0)" }, { opacity: 0, transform: "translate(-50%, 8px)" }],
+        { duration: 200, easing: "cubic-bezier(0.3, 0, 1, 1)" }
+      ).onfinish = esconder;
+    } else {
+      esconder();
+    }
+  }, 4200);
+}
+
+const salaControle = {
+  sala: null,
+  estado: "desligada",
+  mensagem: "",
+  ultimoSinal: 0,
+  ultimoOla: 0,
+  fonteSala: null,
+  arduinoSala: null,
+  luminaria: false,
+  enviados: new Set()
+};
+
+const pendentesSala = new Map();
+let desenhoSalaPendente = null;
+
+const NOMES_EQUIPAMENTOS = {
+  ventiladorLigado: ["Ventilador", "ligado", "desligado"],
+  ledsLigados: ["Luz", "ligada", "desligada"],
+  servoAberto: ["Porta", "aberta", "fechada"],
+  modoAuto: ["Modo automático", "ligado", "desligado"]
+};
+
+function podeOperarSala() {
+  return !window.senaiAuth?.canOperatePanel || window.senaiAuth.canOperatePanel();
+}
+
+function luminariaDaSala() {
+  return estado.fonte === "remoto" ? salaControle.luminaria : salaArduino.luminaria;
+}
+
+// O servo da porta existe no simulado e no Arduino com firmware v3.7 ou mais novo.
+function portaDisponivel() {
+  if (estado.fonte === "arduino") return salaArduino.temPorta;
+  if (estado.fonte === "remoto") return salaControle.fonteSala !== "arduino" || salaControle.arduinoSala?.temPorta === true;
+  return true;
+}
+
+function segundosDesde(instante) {
+  return Math.max(0, Math.round((Date.now() - instante) / 1000));
+}
+
+function numeroOuNulo(valor) {
+  return typeof valor === "number" && Number.isFinite(valor) ? valor : null;
+}
+
+let agrupandoComandosSala = false;
+
+// Junta várias linhas que chegam juntas num único redesenho.
+function agendarDesenhoSala() {
+  if (desenhoSalaPendente !== null) return;
+  desenhoSalaPendente = requestAnimationFrame(() => {
+    desenhoSalaPendente = null;
+    desenhar();
+  });
+}
+
+// Envia um comando para o Arduino (USB) ou para o computador da sala (celular).
+function comandarSala(acao, valor, pendencia = null) {
+  if (estado.fonte === "simulado") return false;
+  if (!podeOperarSala()) {
+    if (!agrupandoComandosSala) {
+      registrarEvento("Comando não enviado: só professores e administradores operam os equipamentos", { salvar: false });
+    }
+    return false;
+  }
+
+  if (estado.fonte === "remoto") {
+    // Dentro de "desligar tudo" o celular só marca o que espera; o pedido vai num envio só.
+    if (agrupandoComandosSala) {
+      if (pendencia) pendentesSala.set(pendencia, { valor, ate: Date.now() + ESPERA_CONFIRMACAO_MS * 2 });
+      return true;
+    }
+    if (!salaControle.sala || salaControle.estado !== "conectada") {
+      registrarEvento("Sem conexão com a sala: o comando não foi enviado", { salvar: false });
+      return false;
+    }
+    if (pendencia) pendentesSala.set(pendencia, { valor, ate: Date.now() + ESPERA_CONFIRMACAO_MS * 2 });
+    const id = Math.random().toString(36).slice(2, 12);
+    salaControle.enviados.add(id);
+    if (salaControle.enviados.size > 50) salaControle.enviados.delete(salaControle.enviados.values().next().value);
+    salaControle.sala.enviar("comando", { id, acao, valor });
+    return true;
+  }
+
+  if (!salaArduino.conexao || salaArduino.estado !== "conectado") {
+    registrarEvento("Arduino desconectado: o comando não foi enviado", { salvar: false });
+    return false;
+  }
+  const comando = window.senaiArduino?.criarComando(acao, valor);
+  if (!comando) return false;
+  if (pendencia) pendentesSala.set(pendencia, { valor, ate: Date.now() + ESPERA_CONFIRMACAO_MS });
+  salaArduino.conexao.enviar(comando);
+  return true;
+}
+
+// Espelha no painel o que o Arduino (ou a sala remota) diz que está ligado.
+// Um comando recém-enviado tem alguns segundos para ser confirmado antes de valer o estado recebido.
+function sincronizarEquipamentos(valores, origem, salvar = true) {
+  let mudou = false;
+  for (const [chave, valor] of Object.entries(valores || {})) {
+    if (typeof valor !== "boolean" || !Object.prototype.hasOwnProperty.call(NOMES_EQUIPAMENTOS, chave)) continue;
+    const pendente = pendentesSala.get(chave);
+    if (pendente) {
+      if (pendente.valor === valor) pendentesSala.delete(chave);
+      else if (Date.now() < pendente.ate) continue;
+      else pendentesSala.delete(chave);
+    }
+    if (estado[chave] === valor) continue;
+    estado[chave] = valor;
+    mudou = true;
+    const [nome, ligado, desligado] = NOMES_EQUIPAMENTOS[chave];
+    registrarEvento(`${nome} ${valor ? ligado : desligado} (${origem})`, { salvar });
+  }
+  return mudou;
+}
+
+// ===== ARDUINO NA USB =====
+
+function receberLinhaArduino(linha) {
+  const mensagem = window.senaiArduino.interpretarLinha(linha);
+  if (!mensagem) return;
+
+  if (mensagem.tipo === "sensores") {
+    aplicarLeituraArduino(mensagem.dados);
+  } else if (mensagem.tipo === "status") {
+    const { luz, ventilador, modo, luminaria, porta } = mensagem.dados;
+    if (typeof luminaria === "boolean") salaArduino.luminaria = luminaria;
+    if (typeof porta === "boolean") salaArduino.temPorta = true;
+    sincronizarEquipamentos({
+      ledsLigados: luz,
+      ventiladorLigado: ventilador,
+      servoAberto: porta,
+      modoAuto: modo === undefined ? undefined : modo === "AUTO"
+    }, "Arduino");
+    avisarPonte();
+  } else if (mensagem.tipo === "firmware") {
+    salaArduino.firmware = mensagem.versao;
+    // A placa reiniciou: as regras do painel voltam a ser enviadas na próxima leitura.
+    salaArduino.configuracaoEnviada = false;
+    registrarEvento(`Arduino iniciou o firmware v${mensagem.versao}`);
+  } else if (mensagem.tipo === "palmas") {
+    const efeito = { 2: "lâmpada alternada", 3: "ventilador alternado" }[mensagem.quantidade];
+    registrarEvento(`Sensor de som: ${mensagem.quantidade} palmas no Arduino`);
+    if (efeito) avisarNaTela(`${mensagem.quantidade} palmas: ${efeito}`);
+  } else if (mensagem.tipo === "recusado") {
+    registrarEvento(`Arduino respondeu: ${mensagem.texto}`, { salvar: false });
+  }
+  agendarDesenhoSala();
+}
+
+function aplicarLeituraArduino(dados) {
+  const agora = Date.now();
+  salaArduino.ultimaLeitura = agora;
+  salaArduino.dhtValido = dados.dhtValido;
+  salaArduino.luminaria = dados.luminaria;
+  if (typeof dados.porta === "boolean") salaArduino.temPorta = true;
+
+  if (salaArduino.primeiraLeitura) {
+    salaArduino.primeiraLeitura = false;
+    // A partir daqui o gráfico mostra só leituras reais.
+    estado.historico = [];
+    registrarEvento("Leituras ao vivo do Arduino no painel");
+  }
+
+  let temperatura = dados.temperatura;
+  let umidade = dados.umidade === null ? null : Math.round(dados.umidade);
+  if (dados.dhtValido) {
+    salaArduino.ultimaValidaDht = { temperatura, umidade, em: agora };
+  } else if (salaArduino.ultimaValidaDht && agora - salaArduino.ultimaValidaDht.em < DHT_TOLERANCIA_MS) {
+    // Falha isolada do DHT11 é comum: mantém o último valor por alguns segundos.
+    ({ temperatura, umidade } = salaArduino.ultimaValidaDht);
+  }
+
+  const leitura = {
+    hora: new Date(agora),
+    temperatura: Number.isFinite(temperatura) ? arredondar(temperatura, 1) : null,
+    umidade: Number.isFinite(umidade) ? umidade : null,
+    luminosidade: dados.luminosidade,
+    pessoas: dados.presenca ? 1 : 0
+  };
+  estado.sensores = leitura;
+
+  if (dados.dhtValido) {
+    estado.historico.push({ ...leitura });
+    if (estado.historico.length > LIMITE_HISTORICO) estado.historico.shift();
+    gravarLeituraArduino(leitura, agora);
+  }
+
+  sincronizarEquipamentos({
+    ledsLigados: dados.luz,
+    ventiladorLigado: dados.ventilador,
+    servoAberto: typeof dados.porta === "boolean" ? dados.porta : undefined,
+    modoAuto: dados.modo === "AUTO"
+  }, "Arduino");
+
+  if (!salaArduino.configuracaoEnviada) enviarRegrasAoArduino();
+  avisarPonte();
+}
+
+// Grava no histórico do banco no ritmo do "Intervalo" das Configurações.
+async function gravarLeituraArduino(leitura, agora) {
+  if (!salaArduino.gravarNoBanco || typeof window.senaiAuth?.saveReading !== "function") return;
+  if (agora - salaArduino.ultimoRegistro < Math.max(estado.intervalo, 2) * 1000) return;
+  salaArduino.ultimoRegistro = agora;
+  try {
+    const resultado = await window.senaiAuth.saveReading(leitura, "ARDUINO");
+    if (resultado?.recusado) {
+      salaArduino.gravarNoBanco = false;
+      registrarEvento("O banco não aceitou as leituras do Arduino: o painel segue ao vivo, sem gravar o histórico", { salvar: false });
+    }
+  } catch {
+    // Sem internet: o painel continua ao vivo.
+  }
+}
+
+// As regras das Configurações valem também para o Arduino.
+function enviarRegrasAoArduino() {
+  salaArduino.configuracaoEnviada = true;
+  if (salaArduino.estado !== "conectado" || !podeOperarSala()) return;
+  comandarSala("limiar-temperatura", estado.tempAlta);
+  comandarSala("limiar-luz", estado.luxBaixa);
+  registrarEvento(`Regras enviadas ao Arduino: ventilador a partir de ${estado.tempAlta} °C`);
+}
+
+function aoMudarConexaoArduino(novo, detalhe) {
+  const anterior = salaArduino.estado;
+  salaArduino.estado = novo;
+
+  if (novo === "conectado") {
+    Object.assign(salaArduino, {
+      conectadoEm: Date.now(),
+      ultimaLeitura: 0,
+      ultimaValidaDht: null,
+      primeiraLeitura: true,
+      configuracaoEnviada: false,
+      gravarNoBanco: true,
+      dhtValido: true,
+      temPorta: false,
+      firmware: null,
+      mensagem: ""
+    });
+    pendentesSala.clear();
+    estado.fonte = "arduino";
+    registrarEvento("Arduino conectado pela USB");
+  } else if (novo === "perdido") {
+    registrarEvento("Conexão com o Arduino perdida: confira o cabo USB");
+  } else if (novo === "desconectado") {
+    if (estado.fonte === "arduino") {
+      estado.fonte = "simulado";
+      if (anterior !== "desconectado") registrarEvento("Arduino desconectado: o painel voltou aos dados simulados");
+    }
+  } else if (novo === "erro") {
+    salaArduino.mensagem = detalhe || "Não foi possível abrir a porta do Arduino.";
+  }
+
+  avisarPonte();
+  desenhar();
+}
+
+async function alternarArduino() {
+  const conexao = salaArduino.conexao;
+  if (!conexao || estado.fonte === "remoto") return;
+  if (salaArduino.estado === "conectado") await conexao.desconectar();
+  // A janela de escolha da porta precisa sair direto do clique.
+  else if (salaArduino.estado !== "conectando") await conexao.conectar();
+}
+
+// ===== PONTE: ESTE COMPUTADOR ATENDE O CELULAR =====
+
+function lerCodigoPonte() {
+  try {
+    return window.senaiRemoto?.formatarCodigo(localStorage.getItem(CHAVE_PONTE)) || null;
+  } catch {
+    return null;
+  }
+}
+
+function gravarCodigoPonte(codigo) {
+  try {
+    if (codigo) localStorage.setItem(CHAVE_PONTE, codigo);
+    else localStorage.removeItem(CHAVE_PONTE);
+  } catch {
+    // Sem armazenamento: o código vale até fechar a página.
+  }
+}
+
+function criarCanalDaSala(nome) {
+  if (typeof window.senaiAuth?.realtimeChannel !== "function") throw new Error("sem-tempo-real");
+  return window.senaiAuth.realtimeChannel(nome);
+}
+
+async function ligarPonte(codigo = null) {
+  if (!window.senaiRemoto || salaPonte.sala || estado.fonte === "remoto" || !podeOperarSala()) return false;
+  const sala = window.senaiRemoto.criarSala({
+    papel: "ponte",
+    codigo: codigo || window.senaiRemoto.gerarCodigo(),
+    criarCanal: criarCanalDaSala,
+    aoMensagem: receberDoCelular,
+    aoEstado: (novo, detalhe) => {
+      if (salaPonte.sala !== sala) return;
+      salaPonte.estado = novo;
+      salaPonte.mensagem = detalhe || "";
+      if (novo === "conectada") enviarEstadoPonte();
+      atualizarInterfaceSala();
+    }
+  });
+  Object.assign(salaPonte, { sala, codigo: sala.codigo, estado: "conectando", mensagem: "", aviso: null, ultimoCelular: 0, mostrarCodigo: false });
+  gravarCodigoPonte(sala.codigo);
+  registrarEvento("Controle pelo celular liberado neste computador");
+  atualizarInterfaceSala();
+  return sala.iniciar();
+}
+
+async function desligarPonte() {
+  const sala = salaPonte.sala;
+  clearTimeout(salaPonte.envio);
+  Object.assign(salaPonte, { sala: null, codigo: null, estado: "desligada", mensagem: "", aviso: null, envio: null });
+  gravarCodigoPonte(null);
+  await sala?.encerrar();
+  if (sala) registrarEvento("Controle pelo celular encerrado neste computador");
+  atualizarInterfaceSala();
+}
+
+// Avisa o celular logo depois de cada mudança, juntando mudanças seguidas.
+function avisarPonte() {
+  if (!salaPonte.sala || salaPonte.envio) return;
+  salaPonte.envio = setTimeout(() => {
+    salaPonte.envio = null;
+    enviarEstadoPonte();
+  }, 250);
+}
+
+function enviarEstadoPonte() {
+  if (!salaPonte.sala || salaPonte.estado !== "conectada") return;
+  salaPonte.ultimoEnvio = Date.now();
+  const s = estado.sensores;
+  const horaLeitura = Number(s?.hora ?? estado.historico.at(-1)?.hora);
+  salaPonte.sala.enviar("estado", {
+    fonte: estado.fonte === "arduino" ? "arduino" : "simulado",
+    arduino: estado.fonte === "arduino"
+      ? {
+          estado: salaArduino.estado,
+          firmware: salaArduino.firmware,
+          dhtValido: salaArduino.dhtValido,
+          luminaria: salaArduino.luminaria,
+          temPorta: salaArduino.temPorta
+        }
+      : null,
+    sensores: s
+      ? {
+          hora: Number.isFinite(horaLeitura) ? horaLeitura : Date.now(),
+          temperatura: numeroOuNulo(s.temperatura),
+          umidade: numeroOuNulo(s.umidade),
+          luminosidade: numeroOuNulo(s.luminosidade),
+          pessoas: numeroOuNulo(s.pessoas)
+        }
+      : null,
+    equipamentos: {
+      ventiladorLigado: estado.ventiladorLigado,
+      ledsLigados: estado.ledsLigados,
+      servoAberto: estado.servoAberto,
+      modoAuto: estado.modoAuto
+    },
+    limites: { tempAlta: estado.tempAlta, luxBaixa: estado.luxBaixa }
+  });
+}
+
+function receberDoCelular(evento, corpo) {
+  salaPonte.ultimoCelular = Date.now();
+  if (evento === "ola") {
+    if (corpo.historico) {
+      salaPonte.sala?.enviar("historico", {
+        historico: estado.historico.slice(-LIMITE_HISTORICO).map((leitura) => ({
+          hora: Number(leitura.hora),
+          temperatura: numeroOuNulo(leitura.temperatura),
+          umidade: numeroOuNulo(leitura.umidade),
+          luminosidade: numeroOuNulo(leitura.luminosidade),
+          pessoas: numeroOuNulo(leitura.pessoas)
+        }))
+      });
+    }
+    enviarEstadoPonte();
+  } else if (evento === "comando") {
+    executarComandoRemoto(corpo);
+  }
+  atualizarInterfaceSala();
+}
+
+// O celular pede; este computador decide com as mesmas regras dos botões e da voz.
+function executarComandoRemoto({ id, acao, valor } = {}) {
+  const responder = (ok, mensagem) => salaPonte.sala?.enviar("resposta", { id: String(id ?? "").slice(0, 24), ok, mensagem });
+  if (!podeOperarSala()) {
+    return responder(false, "O computador da sala precisa estar com uma conta de professor ou administrador.");
+  }
+  const motivo = "controle remoto";
+
+  if (acao === "luz" || acao === "ventilador" || acao === "porta") {
+    if (typeof valor !== "boolean") return responder(false, "Valor inválido.");
+    if (acao === "porta" && !portaDisponivel()) return responder(false, "A porta não tem servo neste Arduino (grave o firmware v3.7).");
+    const chave = { luz: "ledsLigados", ventilador: "ventiladorLigado", porta: "servoAberto" }[acao];
+    // Como na voz: um comando manual interrompe o modo automático.
+    if (estado.modoAuto && acao !== "porta") mudarModoAuto(false, motivo);
+    const antes = estado[chave];
+    definir(chave, valor, motivo);
+    // O painel já achava que estava assim: reenvia ao Arduino para não depender da sincronia.
+    if (antes === valor && estado.fonte === "arduino") comandarSala(acao, valor, chave);
+    const [nome, ligado, desligado] = NOMES_EQUIPAMENTOS[chave];
+    avisarNaTela(`Celular: ${nome.toLowerCase()} ${valor ? ligado : desligado}`);
+  } else if (acao === "modo") {
+    if (typeof valor !== "boolean") return responder(false, "Valor inválido.");
+    mudarModoAuto(valor, motivo);
+    avisarNaTela(`Celular: modo automático ${valor ? "ligado" : "desligado"}`);
+  } else if (acao === "limiar-temperatura" || acao === "limiar-luz") {
+    const campo = $(acao === "limiar-temperatura" ? "temp-alta" : "lux-baixa");
+    const numero = Math.round(Number(valor));
+    if (!campo || !Number.isFinite(numero) || numero < Number(campo.min) || numero > Number(campo.max)) {
+      return responder(false, "Valor fora da faixa permitida.");
+    }
+    campo.value = String(numero);
+    campo.dispatchEvent(new Event("input"));
+    comandarSala(acao, numero);
+    avisarNaTela(acao === "limiar-temperatura"
+      ? `Celular: ventilador liga a partir de ${numero} °C`
+      : `Celular: luz liga abaixo de ${numero} % de luminosidade`);
+  } else if (acao === "desligar-tudo") {
+    desligarTudo();
+    avisarNaTela("Celular: desligar tudo (sem aula)");
+  } else if (acao !== "estado") {
+    return responder(false, "Comando desconhecido.");
+  }
+
+  desenhar();
+  responder(true, "Comando executado na sala.");
+  enviarEstadoPonte();
+}
+
+// ===== CONTROLE: ESTE APARELHO COMANDA A SALA DE LONGE =====
+
+async function entrarNaSala(codigoDigitado) {
+  const codigo = window.senaiRemoto?.formatarCodigo(codigoDigitado);
+  if (!codigo) {
+    salaControle.mensagem = "Código inválido: são 16 letras e números, como ABCD-EFGH-JKLM-NPQR.";
+    atualizarInterfaceSala();
+    return false;
+  }
+  if (salaControle.sala) await sairDaSala({ silencioso: true });
+  if (salaPonte.sala) await desligarPonte();
+  if (salaArduino.conexao && (salaArduino.estado === "conectado" || estado.fonte === "arduino")) {
+    await salaArduino.conexao.desconectar();
+  }
+
+  const sala = window.senaiRemoto.criarSala({
+    papel: "controle",
+    codigo,
+    criarCanal: criarCanalDaSala,
+    aoMensagem: receberDaSala,
+    aoEstado: (novo, detalhe) => {
+      if (salaControle.sala !== sala) return;
+      salaControle.estado = novo;
+      salaControle.mensagem = detalhe || "";
+      if (novo === "conectada") pedirEstadoDaSala(true);
+      atualizarInterfaceSala();
+    }
+  });
+  Object.assign(salaControle, {
+    sala, estado: "conectando", mensagem: "", ultimoSinal: 0, ultimoOla: 0, fonteSala: null, arduinoSala: null, luminaria: false
+  });
+  salaControle.enviados.clear();
+  pendentesSala.clear();
+  window.senaiRemoto.lembrarCodigo(codigo);
+  estado.fonte = "remoto";
+  estado.historico = [];
+  registrarEvento("Controle remoto: conectando à sala", { salvar: false });
+  desenhar();
+  return sala.iniciar();
+}
+
+async function sairDaSala({ silencioso = false } = {}) {
+  const sala = salaControle.sala;
+  Object.assign(salaControle, { sala: null, estado: "desligada", mensagem: "", fonteSala: null, arduinoSala: null });
+  window.senaiRemoto?.esquecerCodigoDoLink();
+  pendentesSala.clear();
+  if (estado.fonte === "remoto") estado.fonte = "simulado";
+  await sala?.encerrar();
+  if (!silencioso) registrarEvento("Controle remoto encerrado: o painel voltou aos dados simulados", { salvar: false });
+  desenhar();
+}
+
+function pedirEstadoDaSala(comHistorico = false) {
+  if (!salaControle.sala || salaControle.estado !== "conectada") return;
+  salaControle.ultimoOla = Date.now();
+  salaControle.sala.enviar("ola", { historico: Boolean(comHistorico) });
+}
+
+function receberDaSala(evento, corpo) {
+  if (estado.fonte !== "remoto") return;
+  salaControle.ultimoSinal = Date.now();
+  if (evento === "estado") {
+    aplicarEstadoDaSala(corpo);
+  } else if (evento === "historico") {
+    aplicarHistoricoDaSala(corpo);
+  } else if (evento === "resposta" && salaControle.enviados.has(corpo.id)) {
+    salaControle.enviados.delete(corpo.id);
+    if (corpo.ok === false && typeof corpo.mensagem === "string") {
+      registrarEvento(`A sala recusou o comando: ${corpo.mensagem.slice(0, 140)}`, { salvar: false });
+    }
+  }
+  agendarDesenhoSala();
+}
+
+function aplicarEstadoDaSala(corpo) {
+  salaControle.fonteSala = corpo.fonte === "arduino" ? "arduino" : "simulado";
+  const arduinoDaSala = corpo.arduino && typeof corpo.arduino === "object" ? corpo.arduino : null;
+  salaControle.arduinoSala = arduinoDaSala
+    ? {
+        estado: String(arduinoDaSala.estado || "").slice(0, 20),
+        firmware: typeof arduinoDaSala.firmware === "string" ? arduinoDaSala.firmware.slice(0, 12) : null,
+        dhtValido: arduinoDaSala.dhtValido !== false,
+        temPorta: arduinoDaSala.temPorta === true
+      }
+    : null;
+  salaControle.luminaria = arduinoDaSala?.luminaria === true;
+
+  const s = corpo.sensores;
+  if (s && typeof s === "object") {
+    const leitura = {
+      hora: new Date(numeroOuNulo(s.hora) ?? Date.now()),
+      temperatura: numeroOuNulo(s.temperatura),
+      umidade: numeroOuNulo(s.umidade),
+      luminosidade: numeroOuNulo(s.luminosidade) ?? 0,
+      pessoas: numeroOuNulo(s.pessoas) ?? 0
+    };
+    estado.sensores = leitura;
+    const ultima = estado.historico.at(-1);
+    if (leitura.temperatura !== null && leitura.umidade !== null && (!ultima || Number(ultima.hora) < Number(leitura.hora))) {
+      estado.historico.push({ ...leitura });
+      if (estado.historico.length > LIMITE_HISTORICO) estado.historico.shift();
+    }
+  }
+
+  // A sala já registra os próprios eventos no banco; aqui eles só aparecem na lista.
+  sincronizarEquipamentos(corpo.equipamentos, "sala remota", false);
+  const limites = corpo.limites && typeof corpo.limites === "object" ? corpo.limites : {};
+  aplicarLimiteLocal("temp-alta", "tempAlta", limites.tempAlta);
+  aplicarLimiteLocal("lux-baixa", "luxBaixa", limites.luxBaixa);
+}
+
+function aplicarHistoricoDaSala(corpo) {
+  if (!Array.isArray(corpo.historico)) return;
+  estado.historico = corpo.historico
+    .slice(-LIMITE_HISTORICO)
+    .map((leitura) => ({
+      hora: new Date(numeroOuNulo(leitura?.hora) ?? Number.NaN),
+      temperatura: numeroOuNulo(leitura?.temperatura),
+      umidade: numeroOuNulo(leitura?.umidade),
+      luminosidade: numeroOuNulo(leitura?.luminosidade),
+      pessoas: numeroOuNulo(leitura?.pessoas)
+    }))
+    .filter((leitura) => Number.isFinite(Number(leitura.hora)) &&
+      [leitura.temperatura, leitura.umidade, leitura.luminosidade, leitura.pessoas].every((valor) => valor !== null))
+    .sort((a, b) => a.hora - b.hora);
+}
+
+// Mostra a regra que vale na sala, sem atrapalhar quem está mexendo no controle.
+function aplicarLimiteLocal(id, chave, valor) {
+  const campo = $(id);
+  if (!campo || typeof valor !== "number" || !Number.isFinite(valor) || estado[chave] === valor) return;
+  if (valor < Number(campo.min) || valor > Number(campo.max) || document.activeElement === campo) return;
+  estado[chave] = valor;
+  campo.value = String(valor);
+  const rotulo = $(`${id}-valor`);
+  if (rotulo) rotulo.textContent = valor;
+}
+
+// ===== INTERFACE =====
+
+function situacaoSala() {
+  const agora = Date.now();
+  if (estado.fonte === "remoto") {
+    if (salaControle.estado === "conectando") return { tipo: "aguardando", texto: "Conectando à sala…" };
+    if (salaControle.estado !== "conectada") return { tipo: "alerta", texto: "Sala remota sem conexão" };
+    if (!salaControle.ultimoSinal) return { tipo: "aguardando", texto: "Aguardando o computador da sala…" };
+    if (agora - salaControle.ultimoSinal > SALA_SEM_SINAL_MS) return { tipo: "alerta", texto: "Sem sinal do computador da sala" };
+    if (salaControle.fonteSala === "arduino") {
+      if (salaControle.arduinoSala?.estado !== "conectado") return { tipo: "alerta", texto: "Sala remota · Arduino desconectado" };
+      if (salaControle.arduinoSala?.dhtValido === false) return { tipo: "alerta", texto: "Ao vivo · DHT11 sem leitura" };
+      return { tipo: "ao-vivo", texto: "Ao vivo · Arduino da sala" };
+    }
+    return { tipo: "simulado", texto: "Sala remota · dados simulados" };
+  }
+
+  if (estado.fonte === "arduino") {
+    const a = salaArduino;
+    if (a.estado === "conectando") return { tipo: "aguardando", texto: "Conectando ao Arduino…" };
+    if (a.estado !== "conectado") return { tipo: "alerta", texto: "Arduino desconectado · confira o cabo USB" };
+    if (!a.ultimaLeitura) {
+      return Date.now() - a.conectadoEm > 6000
+        ? { tipo: "alerta", texto: "Arduino sem dados reconhecidos" }
+        : { tipo: "aguardando", texto: "Arduino conectado · aguardando leituras" };
+    }
+    if (agora - a.ultimaLeitura > LEITURA_ATRASADA_MS) return { tipo: "alerta", texto: "Arduino sem enviar leituras" };
+    if (!a.dhtValido) return { tipo: "alerta", texto: "Ao vivo · DHT11 sem leitura" };
+    return { tipo: "ao-vivo", texto: "Ao vivo · Arduino" };
+  }
+
+  if (salaArduino.estado === "conectando") return { tipo: "aguardando", texto: "Conectando ao Arduino…" };
+  return { tipo: "simulado", texto: "Dados simulados" };
+}
+
+function textoSituacaoArduino(suportado, remoto) {
+  if (remoto) return "Este aparelho comanda a sala de longe. O Arduino fica ligado na USB do computador da sala.";
+  if (!suportado) return "Este navegador não acessa a USB. No computador da sala, use o Google Chrome ou o Microsoft Edge.";
+  const a = salaArduino;
+  if (a.estado === "conectando") return "Abrindo a porta do Arduino…";
+  if (a.estado === "conectado") {
+    const partes = ["Conectado pela USB"];
+    if (a.firmware) partes.push(`firmware v${a.firmware}`);
+    partes.push(a.ultimaLeitura ? `última leitura há ${segundosDesde(a.ultimaLeitura)} s` : "aguardando a primeira leitura");
+    return `${partes.join(" · ")}.`;
+  }
+  if (a.estado === "erro") return a.mensagem;
+  if (estado.fonte === "arduino") return "A conexão caiu. Ligue o cabo USB de novo: o painel reconecta sozinho.";
+  return "Desconectado: o painel mostra dados simulados.";
+}
+
+function textoSituacaoPonte() {
+  if (!salaPonte.sala) {
+    if (!window.senaiRemoto) return "";
+    return podeOperarSala() ? "" : "Só professores e administradores liberam o controle pelo celular.";
+  }
+  if (salaPonte.aviso && Date.now() < salaPonte.aviso.ate) return salaPonte.aviso.texto;
+  if (salaPonte.estado === "erro") return salaPonte.mensagem || "Não foi possível abrir a conexão.";
+  if (salaPonte.estado === "conectando") return "Abrindo a conexão com a internet…";
+  if (salaPonte.estado === "reconectando") return "Sem internet no momento: tentando de novo…";
+  if (salaPonte.ultimoCelular && Date.now() - salaPonte.ultimoCelular < SINAL_CELULAR_MS) {
+    return `Celular conectado (sinal há ${segundosDesde(salaPonte.ultimoCelular)} s). Deixe esta página aberta.`;
+  }
+  return "Pronto. Abra o link no celular e entre com a sua conta. Deixe esta página aberta.";
+}
+
+function textoSituacaoControle() {
+  if (estado.fonte !== "remoto") return salaControle.mensagem;
+  if (salaControle.estado === "erro") return salaControle.mensagem;
+  if (salaControle.estado === "conectando") return "Conectando à sala…";
+  if (salaControle.estado === "reconectando") return "Sem internet no momento: tentando de novo…";
+  const situacao = situacaoSala();
+  const extra = podeOperarSala() ? " Os botões e os comandos de voz comandam a sala." : " Seu perfil só acompanha a sala.";
+  return `${situacao.texto}.${situacao.tipo === "ao-vivo" || situacao.tipo === "simulado" ? extra : ""}`;
+}
+
+function definirTexto(id, texto) {
+  const elemento = $(id);
+  if (elemento && elemento.textContent !== texto) elemento.textContent = texto;
+}
+
+function mostrarElemento(id, visivel) {
+  const elemento = $(id);
+  if (elemento && elemento.hidden === visivel) elemento.hidden = !visivel;
+}
+
+function atualizarInterfaceSala() {
+  const situacao = situacaoSala();
+  const selo = $("fonte-dados");
+  if (selo && selo.dataset.tipo !== situacao.tipo) selo.dataset.tipo = situacao.tipo;
+  definirTexto("fonte-dados-texto", situacao.texto);
+
+  const suportado = Boolean(salaArduino.conexao?.suportado);
+  const remoto = estado.fonte === "remoto";
+  const conexao = salaArduino.estado;
+  const rotulo = conexao === "conectado"
+    ? "Desconectar Arduino"
+    : conexao === "conectando"
+      ? "Conectando…"
+      : estado.fonte === "arduino" ? "Reconectar Arduino" : "Conectar Arduino";
+  const luz = conexao === "conectado"
+    ? (situacao.tipo === "ao-vivo" ? "ligado" : "aguardando")
+    : conexao === "conectando" ? "aguardando" : estado.fonte === "arduino" ? "alerta" : "desligado";
+  for (const id of ["btn-arduino", "btn-arduino-config"]) {
+    const botao = $(id);
+    if (!botao) continue;
+    const desabilitado = conexao === "conectando" || !suportado || remoto;
+    if (botao.disabled !== desabilitado) botao.disabled = desabilitado;
+    if (botao.dataset.estado !== luz) botao.dataset.estado = luz;
+    const texto = botao.querySelector(".sala-botao-texto");
+    if (texto && texto.textContent !== rotulo) texto.textContent = rotulo;
+  }
+  mostrarElemento("btn-arduino", suportado && !remoto);
+  // No celular que comanda de longe, o cartão da USB só atrapalharia.
+  mostrarElemento("arduino-card", !remoto);
+  mostrarElemento("btn-arduino-config", suportado);
+  definirTexto("arduino-situacao", textoSituacaoArduino(suportado, remoto));
+  mostrarElemento("btn-arduino-simulacao", estado.fonte === "arduino" && conexao !== "conectado" && conexao !== "conectando");
+
+  const ponteAtiva = Boolean(salaPonte.sala);
+  mostrarElemento("ponte-bloco", !remoto);
+  mostrarElemento("ponte-codigo-bloco", ponteAtiva);
+  definirTexto("ponte-codigo", salaPonte.codigo ? (salaPonte.mostrarCodigo ? salaPonte.codigo : "••••-••••-••••-••••") : "");
+  const botaoMostrar = $("btn-ponte-mostrar");
+  if (botaoMostrar) {
+    definirTexto("btn-ponte-mostrar", salaPonte.mostrarCodigo ? "Ocultar código" : "Mostrar código");
+    botaoMostrar.setAttribute("aria-pressed", String(salaPonte.mostrarCodigo));
+  }
+  definirTexto("btn-ponte", ponteAtiva ? "Encerrar controle pelo celular" : "Gerar código para o celular");
+  const botaoPonte = $("btn-ponte");
+  if (botaoPonte) {
+    const desabilitado = !window.senaiRemoto || (!ponteAtiva && !podeOperarSala());
+    if (botaoPonte.disabled !== desabilitado) botaoPonte.disabled = desabilitado;
+    // Encerrar não é a ação principal: o destaque fica com "Copiar link para o celular".
+    botaoPonte.classList.toggle("primario", !ponteAtiva);
+  }
+  definirTexto("ponte-situacao", textoSituacaoPonte());
+
+  mostrarElemento("controle-bloco", !ponteAtiva);
+  mostrarElemento("controle-form", !remoto);
+  mostrarElemento("btn-controle-sair", remoto);
+  definirTexto("controle-situacao", textoSituacaoControle());
+}
+
+async function copiarTexto(texto, aviso) {
+  if (!texto) return;
+  try {
+    await navigator.clipboard.writeText(texto);
+    salaPonte.aviso = { texto: aviso, ate: Date.now() + 5000 };
+  } catch {
+    salaPonte.aviso = { texto: "Não deu para copiar sozinho: selecione o código e copie.", ate: Date.now() + 5000 };
+  }
+  atualizarInterfaceSala();
+}
+
+function linkDaSala() {
+  return salaPonte.codigo ? `${location.origin}${location.pathname}#sala=${salaPonte.codigo}` : "";
+}
+
+// Uma vez por segundo: sinais de vida entre a sala e o celular e textos de "há X s".
+function tiqueSala() {
+  const agora = Date.now();
+  if (salaPonte.sala && salaPonte.estado === "conectada" && agora - salaPonte.ultimoEnvio > 5000) enviarEstadoPonte();
+  if (salaControle.sala && salaControle.estado === "conectada" && agora - salaControle.ultimoOla > 15000) pedirEstadoDaSala(false);
+  atualizarInterfaceSala();
+}
+
+function configurarSala() {
+  $("btn-arduino")?.addEventListener("click", alternarArduino);
+  $("btn-arduino-config")?.addEventListener("click", alternarArduino);
+  $("btn-arduino-simulacao")?.addEventListener("click", () => salaArduino.conexao?.desconectar());
+  $("btn-ponte")?.addEventListener("click", () => (salaPonte.sala ? desligarPonte() : ligarPonte()));
+  $("btn-ponte-copiar-link")?.addEventListener("click", () => copiarTexto(linkDaSala(), "Link copiado: mande para o celular pelo WhatsApp."));
+  $("btn-ponte-copiar-codigo")?.addEventListener("click", () => copiarTexto(salaPonte.codigo, "Código copiado."));
+  $("btn-ponte-mostrar")?.addEventListener("click", () => {
+    salaPonte.mostrarCodigo = !salaPonte.mostrarCodigo;
+    atualizarInterfaceSala();
+  });
+  $("controle-form")?.addEventListener("submit", (evento) => {
+    evento.preventDefault();
+    entrarNaSala($("controle-codigo")?.value);
+  });
+  $("btn-controle-sair")?.addEventListener("click", () => sairDaSala());
+
+  if (window.senaiArduino) {
+    salaArduino.conexao = window.senaiArduino.criarConexao({
+      aoLinha: receberLinhaArduino,
+      aoEstado: aoMudarConexaoArduino
+    });
+    salaArduino.estado = salaArduino.conexao.estado;
+  }
+  setInterval(tiqueSala, 1000);
+
+  // Depois do login: o celular volta para a sala do link; o computador da sala retoma o Arduino e a ponte.
+  const codigoDoLink = window.senaiRemoto?.lerCodigoDoLink();
+  if (codigoDoLink) {
+    entrarNaSala(codigoDoLink);
+  } else {
+    salaArduino.conexao?.reconectarAutomatico();
+    const codigoPonte = lerCodigoPonte();
+    if (codigoPonte && podeOperarSala()) ligarPonte(codigoPonte);
+  }
+  atualizarInterfaceSala();
+}

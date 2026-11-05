@@ -10,8 +10,11 @@
 <link rel="stylesheet" href="visual.css">
 <link rel="stylesheet" href="senai-auth.css">
 <link rel="stylesheet" href="assets/dashboard-carousel.css">
+<link rel="stylesheet" href="sala.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/dist/umd/supabase.min.js" integrity="sha384-/E7xfJz9bbCsrwJAbrt9CO5JB1REPVQjuSrQT4Cpz2BQBocDVsGLB2/VMAEzYaf+" crossorigin="anonymous" defer></script>
 <script src="senai-auth.js" defer></script>
+<script src="arduino.js" defer></script>
+<script src="remoto.js" defer></script>
 <script src="app.js" defer></script>
 <script src="assets/dashboard-carousel.js" defer></script>
 </head>
@@ -40,6 +43,8 @@
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 4.8v14.4a1 1 0 0 0 1.53.85l11.2-7.2a1 1 0 0 0 0-1.7L9.03 3.95a1 1 0 0 0-1.53.85z"/></symbol>
   <symbol id="i-apresentacao" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M10 7.5v5l4.5-2.5z"/></symbol>
   <symbol id="i-fechar" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/></symbol>
+  <symbol id="i-celular" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></symbol>
   <symbol id="i-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
   <symbol id="i-onda" viewBox="0 0 24 24"><path d="M2 10v4M6 6v12M10 3v18M14 8v8M18 5v14M22 10v4"/></symbol>
   <symbol id="i-trend-up" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
@@ -120,6 +125,11 @@
       <button class="aba-btn" id="aba-btn-config" data-aba="config" type="button" role="tab" aria-controls="aba-config" aria-selected="false" tabindex="-1"><svg class="ico"><use href="#i-ajustes"/></svg>Configurações</button>
     </nav>
 
+    <button class="btn sala-botao arduino-btn" id="btn-arduino" type="button" data-estado="desligado" hidden>
+      <span class="sala-led" aria-hidden="true"></span>
+      <span class="sala-botao-texto">Conectar Arduino</span>
+    </button>
+
     <button class="btn apresentacao-btn" id="btn-apresentacao" type="button" aria-pressed="false">
       <svg class="ico" aria-hidden="true"><use href="#i-apresentacao"/></svg>
       <span>Modo apresentação</span>
@@ -188,6 +198,7 @@
             <h1 id="carousel-titulo">Monitoramento dos sensores</h1>
             <p class="so-normal">Passe o cursor sobre um cartão para girar a roleta. Dê um duplo clique para ampliar.</p>
             <p class="so-apresentacao">Sala SENAI Smart Class · temperatura, umidade, ocupação e luminosidade em um só painel.</p>
+            <p class="fonte-dados" id="fonte-dados" data-tipo="simulado" role="status" aria-live="polite"><span class="fonte-dados-ponto" aria-hidden="true"></span><span id="fonte-dados-texto">Dados simulados</span></p>
           </div>
           <span class="carousel-sala so-normal">Sala SENAI Smart Class</span>
           <div class="marca-senai so-apresentacao" role="img" aria-label="SENAI – Serviço Nacional de Aprendizagem Industrial">
@@ -358,7 +369,7 @@
       <h2>Controles da sala</h2>
       <section class="metricas" aria-label="Leituras atuais da Sala SENAI Smart Class">
         <div class="card metrica" data-metrica="pessoas">
-          <div class="rotulo"><svg class="ico"><use href="#i-users"/></svg>Pessoas na sala</div>
+          <div class="rotulo"><svg class="ico"><use href="#i-users"/></svg><span id="m-pessoas-rotulo">Pessoas na sala</span></div>
           <div class="valor"><span id="m-pessoas">--</span> <span class="unidade">pessoas</span></div>
           <div id="m-presenca" class="presenca-status">Sem leitura</div>
           <div class="delta" id="m-pessoas-delta"></div>
@@ -391,6 +402,7 @@
           <h3><svg class="ico"><use href="#i-luz"/></svg>Luz</h3>
           <span class="pill off" id="pill-leds"></span>
           <div><button class="btn" id="btn-leds">Ligar/Desligar luz</button></div>
+          <p class="legenda luminaria-pir" id="luminaria-pir" hidden>Luminária do sensor de presença: <b id="luminaria-pir-estado">desligada</b></p>
         </div>
         <div class="card">
           <h3><svg class="ico"><use href="#i-power"/></svg>Porta</h3>
@@ -415,6 +427,55 @@
         <label for="intervalo">Intervalo (segundos): <b id="intervalo-valor">5</b></label>
         <input type="range" id="intervalo" min="2" max="30" value="5" disabled>
       </div>
+
+      <section class="card sala-card" id="arduino-card" aria-labelledby="arduino-titulo">
+        <h3 id="arduino-titulo"><svg class="ico" aria-hidden="true"><use href="#i-plug"/></svg>Arduino da bancada (USB)</h3>
+        <p class="sala-situacao" id="arduino-situacao">Desconectado: o painel mostra dados simulados.</p>
+        <div class="linha-botoes">
+          <button class="btn primario sala-botao" id="btn-arduino-config" type="button" data-estado="desligado">
+            <span class="sala-led" aria-hidden="true"></span>
+            <span class="sala-botao-texto">Conectar Arduino</span>
+          </button>
+          <button class="btn" id="btn-arduino-simulacao" type="button" hidden>Voltar aos dados simulados</button>
+        </div>
+        <p class="legenda">No computador onde o Arduino UNO R4 WiFi (firmware v3.6) está ligado pela USB, use o Google Chrome ou o Microsoft Edge e escolha a porta do Arduino. Feche antes o Monitor Serial da IDE: a porta só atende um programa por vez.</p>
+        <p class="legenda">Com o Arduino, o sensor PIR mostra se há presença (ele não conta pessoas), o LDR digital mostra claro ou escuro e a automação roda no próprio Arduino. A porta só funciona com o firmware v3.7, que acrescenta o servo.</p>
+      </section>
+
+      <section class="card sala-card" id="remoto-card" aria-labelledby="remoto-titulo">
+        <h3 id="remoto-titulo"><svg class="ico" aria-hidden="true"><use href="#i-celular"/></svg>Controle pelo celular</h3>
+        <div class="sala-bloco" id="ponte-bloco">
+          <h4>Neste computador da sala</h4>
+          <p class="legenda">Gera um código para comandar esta sala de longe, pelo celular, com botões ou comandos de voz.</p>
+          <div class="sala-codigo" id="ponte-codigo-bloco" hidden>
+            <span class="legenda">Código da sala (fica oculto porque esta tela pode estar na TV)</span>
+            <output class="sala-codigo-valor" id="ponte-codigo" aria-live="off"></output>
+            <div class="linha-botoes">
+              <button class="btn primario" id="btn-ponte-copiar-link" type="button">Copiar link para o celular</button>
+              <button class="btn" id="btn-ponte-copiar-codigo" type="button">Copiar código</button>
+              <button class="btn" id="btn-ponte-mostrar" type="button" aria-pressed="false" aria-controls="ponte-codigo">Mostrar código</button>
+            </div>
+          </div>
+          <p class="sala-situacao" id="ponte-situacao" role="status" aria-live="polite"></p>
+          <div class="linha-botoes">
+            <button class="btn primario" id="btn-ponte" type="button">Gerar código para o celular</button>
+          </div>
+        </div>
+        <div class="sala-bloco" id="controle-bloco">
+          <h4>Neste celular</h4>
+          <form class="sala-form" id="controle-form" novalidate>
+            <label for="controle-codigo">Código da sala</label>
+            <div class="sala-form-linha">
+              <input id="controle-codigo" name="codigo" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="ABCD-EFGH-JKLM-NPQR" aria-describedby="controle-situacao">
+              <button class="btn primario" id="btn-controle" type="submit">Conectar à sala</button>
+            </div>
+          </form>
+          <p class="sala-situacao" id="controle-situacao" role="status" aria-live="polite"></p>
+          <div class="linha-botoes">
+            <button class="btn" id="btn-controle-sair" type="button" hidden>Sair do controle remoto</button>
+          </div>
+        </div>
+      </section>
     </section>
 
 

@@ -14,7 +14,7 @@ As chaves publishable do frontend são públicas; nunca adicionar service_role o
 
 Os testes locais usam serviços simulados e não substituem testes autenticados no ambiente publicado.
 O cabeçalho frame-ancestors exige Vercel ou configuração equivalente no provedor de hospedagem.
-Integração com ESP32/Arduino, acionamento físico e projeto piloto dependem de hardware e não fazem parte destas correções.
+A integração com o Arduino pela USB e o controle pelo celular estão descritos em "Arduino e controle pelo celular", no fim deste arquivo.
 
 ## Hardening AppSec de 30/10/2026
 
@@ -36,7 +36,7 @@ Backend aplicado no projeto `senai-smart-class01`:
 
 - A CSP agora bloqueia atributos de script inline (`script-src-attr 'none'`), limita workers, mídia e manifestos à própria origem e exige upgrade de subrecursos HTTP para HTTPS no deployment.
 - A publicação aplica `Cross-Origin-Resource-Policy: same-origin`, `Origin-Agent-Cluster: ?1`, bloqueio de prefetch DNS e de políticas cross-domain legadas, além de impedir indexação do painel autenticado.
-- A política de permissões mantém câmera, geolocalização, pagamentos e USB bloqueados; o microfone é permitido somente à própria origem porque o assistente de voz depende dessa capacidade.
+- A política de permissões mantém câmera, geolocalização, pagamentos e WebUSB bloqueados; o microfone é permitido somente à própria origem porque o assistente de voz depende dessa capacidade (e, desde 05/11/2026, a porta serial, para o Arduino).
 - O formulário de login limita e-mail a 254 caracteres e senha a 128 caracteres, desliga autocapitalização/corretor no e-mail e preserva o fluxo atual de autenticação.
 
 ### Verificações de backend em 31/10/2026
@@ -51,3 +51,11 @@ Backend aplicado no projeto `senai-smart-class01`:
 1. Ativar **Leaked Password Protection** em Supabase Auth; o Security Advisor ainda aponta esse recurso como desativado.
 2. Executar matriz autenticada de ALUNO, PROFESSOR e ADM em homologação para validar RBAC, IDOR, exportação e revogação de sessão.
 3. Exercitar o bloqueio de login com contas descartáveis, em homologação, para confirmar o ciclo completo de bloqueio e liberação sem realizar força bruta em produção.
+
+## Arduino e controle pelo celular (05/11/2026)
+
+- **USB:** a política de permissões libera `serial=(self)` (Web Serial) só para o próprio site; WebUSB continua bloqueado (`usb=()`). A porta só abre depois que alguém escolhe o Arduino na janela do navegador; a reconexão automática vale apenas para a mesma placa já autorizada.
+- **Comandos ao Arduino:** o painel só monta os comandos de texto que o firmware aceita (`LUZ`, `VENTILADOR`, `AUTO`, `MANUAL`, `LIMIAR_TEMP 15..45`, `LIMIAR_LUZ 0..100` e `PORTA` no v3.7). Contas de aluno não enviam comandos nem regras.
+- **Canal do celular:** Broadcast público do Supabase Realtime com a chave publishable, sem tabelas novas. A proteção vem do código da sala (80 bits aleatórios): o nome do canal é derivado dele por SHA-256 e cada mensagem leva HMAC-SHA-256, horário (janela de 10 minutos) e um número único contra repetição. O notebook aceita só a lista fechada de ações, valida os valores e executa com a própria conta (professor ou administrador).
+- **Exposição do código:** na tela ele fica oculto, porque o notebook costuma estar espelhado na TV. O link vai com o código no fragmento (`#sala=`), que o navegador não envia ao servidor e que o painel apaga da barra de endereço.
+- **Limites:** quem tiver o código comanda a sala enquanto ele valer; ao fim do evento, use **Encerrar controle pelo celular** para invalidá-lo. Mensagens inválidas são descartadas, mas o canal público pode receber excesso de mensagens. A gravação das leituras com origem `ARDUINO` depende da restrição da coluna `source` no banco; se ela recusar, o painel para de gravar e continua ao vivo.

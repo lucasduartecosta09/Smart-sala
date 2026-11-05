@@ -2,7 +2,7 @@
 
 Painel de monitoramento e automação de sala desenvolvido com HTML, CSS e JavaScript, com autenticação e persistência no Supabase.
 
-As leituras de ocupação, DHT11 (temperatura e umidade) e LDR (luminosidade) são **simuladas**. A ocupação representa de 0 a 40 pessoas na sala. Os controles do servo SG90, motor DC do ventilador e LEDs também operam a simulação; ainda não há acionamento de equipamentos físicos.
+Sem o Arduino, as leituras de ocupação, DHT11 (temperatura e umidade) e LDR (luminosidade) são **simuladas**: a ocupação representa de 0 a 40 pessoas e os controles operam a simulação. Com o **Arduino UNO R4 WiFi** ligado na USB do computador da sala, o painel mostra as leituras reais e os botões, a voz e as regras comandam a bancada de verdade (veja [Arduino e controle pelo celular](#arduino-e-controle-pelo-celular)).
 
 ## Acesso online
 
@@ -16,6 +16,7 @@ A Vercel publica automaticamente os commits enviados à branch `main` deste repo
 
 - Indicadores e carrossel circular para escolher o gráfico principal, com históricos contextuais das demais grandezas na aba **Sensores**.
 - **Modo apresentação** para a TV de eventos: sequência automática de gráficos, roleta girando, abertura animada com a logo do SENAI e equipe do projeto. Desligado, o painel funciona como antes.
+- **Arduino na USB** (Chrome ou Edge no computador) e **controle pelo celular**, com botões ou com a assistente de voz, de qualquer lugar.
 - Controles do servo SG90, ventilador DC e LEDs, regras automáticas, exportação de histórico e assistente de voz.
 - Temas escuro e claro. O tema claro usa superfícies brancas, texto escuro e acentos roxos.
 - Layout para computador, tablet e celular.
@@ -75,6 +76,59 @@ Verificação manual: confirme o acesso e o carregamento do histórico com uma c
 - As animações usam GSAP (SplitText e DrawSVG), empacotado no próprio bundle. Com a preferência de movimento reduzido, as telas só aparecem e somem.
 - A logo do SENAI fica em `assets/senai-marca*.png`: a colorida para o tema claro e a negativa (branca com o acento laranja) para o escuro e para as telas da apresentação.
 
+## Arduino e controle pelo celular
+
+O painel conversa com o firmware **v3.6** do Arduino UNO R4 WiFi sem mudar nada nele: lê as linhas que ele já imprime pela USB (115200 baud) e envia os comandos de texto que ele já entende. O Wi-Fi/MQTT do firmware continua desligado.
+
+```
+Celular (site + assistente de voz) ──internet──▶ Notebook da TV (site aberto) ──USB──▶ Arduino
+```
+
+### No notebook da sala (ligado na TV)
+
+1. Ligue o Arduino na USB do notebook e feche o Monitor Serial da IDE do Arduino (a porta só atende um programa).
+2. Abra o site no **Google Chrome** ou no **Microsoft Edge** e entre com uma conta de **professor ou administrador**.
+3. Clique em **Conectar Arduino** (barra lateral ou **Configurações**) e escolha a porta do Arduino. O selo "Ao vivo · Arduino" aparece no cabeçalho dos sensores. Nas próximas vezes, a mesma placa reconecta sozinha depois do login.
+4. Em **Configurações → Controle pelo celular**, clique em **Gerar código para o celular** e em **Copiar link para o celular**; mande o link pelo WhatsApp. O código fica oculto na tela, porque ela pode estar espelhada na TV.
+5. Deixe a página aberta. Ela pode ficar no **Modo apresentação**: cada pedido do celular aparece num aviso na tela ("Celular: ventilador ligado").
+
+### No celular
+
+1. Abra o link recebido (ou digite o código em **Configurações → Controle pelo celular**) e entre com uma conta de professor ou administrador.
+2. O selo mostra "Ao vivo · Arduino da sala". Os botões de **Controles** e a **assistente de voz** passam a comandar a sala: "ligar o ventilador", "desligar a luz", "ligar o modo automático", "desligar tudo".
+3. No modo automático, a voz não desliga um equipamento sozinho (regra do painel): diga "desligar tudo" ou "desligar o modo automático" antes.
+
+### O que cada controle envia ao Arduino
+
+| No painel | Comando na USB |
+| --- | --- |
+| Ventilador | `VENTILADOR 1` / `VENTILADOR 0` |
+| Luz | `LUZ 1` / `LUZ 0` (lâmpada Smart, D7) |
+| Modo automático | `AUTO` / `MANUAL` |
+| Desligar tudo | `MANUAL`, `VENTILADOR 0`, `LUZ 0` |
+| Temperatura para ligar o ventilador | `LIMIAR_TEMP 20..32` |
+| Luminosidade para ligar a luz | `LIMIAR_LUZ 10..80` (com o LDR digital, quem decide claro ou escuro é o potenciômetro do módulo) |
+| Porta | `PORTA 1` / `PORTA 0`, só com o firmware **v3.7**, que acrescenta o servo SG90 no pino A0 |
+
+- Leituras: a linha `[SENSORES]` chega a cada 2 s. O PIR informa presença (o cartão mostra **Ocupada/Vazia**, não conta pessoas) e o LDR digital informa **Claro/Escuro**. A automação roda no próprio firmware; o painel só espelha o estado dele (incluindo as palmas no sensor de som).
+- Ao conectar, o painel envia as regras de **Configurações** (`LIMIAR_TEMP` e `LIMIAR_LUZ`). O gráfico recomeça só com leituras reais, e o histórico vai para o banco com origem `ARDUINO` no ritmo do **Intervalo**. Se o banco recusar essa origem, o painel segue ao vivo sem gravar e avisa nos eventos.
+- Falha isolada do DHT11 mantém a última leitura por até 10 s; depois aparece "Sem leitura" e um alerta. Cabo solto mostra "Arduino desconectado" sem voltar à simulação; religado, reconecta sozinho.
+- Alunos acompanham as leituras, mas não comandam os equipamentos.
+
+### Segurança do controle pelo celular
+
+- O notebook e o celular trocam mensagens por um canal **Broadcast do Supabase Realtime**, aberto com a chave pública do site (que não expira como a sessão do login).
+- O nome do canal e a chave das mensagens saem do **código da sala** (16 caracteres, 80 bits). Cada mensagem leva assinatura **HMAC-SHA-256**, horário e um número único: mensagem sem o código, alterada, repetida ou com mais de 10 minutos é descartada.
+- O notebook só executa o que os botões e a voz executariam, com a conta que está logada nele (professor ou administrador). **Encerrar controle pelo celular** apaga o código; o próximo será outro.
+
+### Arquivos
+
+- `arduino.js`: protocolo do firmware (linhas e comandos) e conexão Web Serial, testados em `tests/arduino.test.mjs`.
+- `remoto.js`: código da sala, assinatura das mensagens e canal em tempo real, testados em `tests/remoto.test.mjs`.
+- `app.js` (fim do arquivo): integração com o painel, a ponte do notebook e o controle do celular, testados em `tests/sala-conectada.test.mjs`.
+- `sala.css`: selo "Ao vivo", botão do Arduino, cartões de Configurações e aviso na tela.
+- `vercel.json` libera a USB serial (`serial=(self)`) só para o próprio site.
+
 ### Rotação automática e créditos (no modo apresentação)
 
 - A roleta avança um cartão a cada 10 segundos. Abaixo dela fica um controle discreto: o ícone de pausa e uma linha fina, na cor do cartão da frente, que mostra o tempo até a próxima troca. Ele fica apagado no painel e ganha nitidez ao passar o mouse ou receber foco pelo teclado.
@@ -107,7 +161,7 @@ Os arquivos em `assets/` acompanham o código, portanto a página continua funci
 
 - `src/components/CircularCarousel.jsx` e `.css`: componente instalado. Adaptações locais pequenas adicionam rótulos em português e a API `ref.focusIndex()` para os atalhos acessíveis. A licença original fica ao lado do componente e é copiada para `assets/`.
 - `src/dashboard-carousel.jsx`: ilha React, navegação, mudança de tema e sincronização com o dashboard.
-- `src/sensor-cards.mjs`: prévias SVG calculadas a partir das leituras reais da sessão (atualmente simuladas).
+- `src/sensor-cards.mjs`: prévias SVG calculadas a partir das leituras da sessão (simuladas ou do Arduino, com presença e LDR digitais em texto).
 - `src/rotacao-automatica.mjs`: temporizador único da rotação automática e motivos de pausa, testado em `tests/rotacao-automatica.test.mjs`.
 - `src/apresentacao.mjs`: sequência e tempos do modo apresentação, testada em `tests/apresentacao.test.mjs`.
 - `src/apresentacao.jsx` e `src/apresentacao.css`: telas de abertura e da equipe (GSAP) e o visual do painel no modo apresentação.
@@ -126,7 +180,10 @@ O HTML inclui atalhos para escolher sensores caso o bundle não carregue; autent
 | `index.html` | Estrutura, abas, formulário de login e gerenciamento de contas. |
 | `visual.css` | Layout, gráficos, temas e responsividade. |
 | `senai-auth.css` | Tela de login e área de contas. |
-| `app.js` | Sensores simulados, automação, gráficos e voz. |
+| `app.js` | Sensores (simulados ou do Arduino), automação, gráficos, voz e controle pelo celular. |
+| `arduino.js` | Leitura e comandos do Arduino pela USB (Web Serial). |
+| `remoto.js` | Canal assinado entre o notebook da sala e o celular. |
+| `sala.css` | Visual do Arduino, do controle pelo celular e do aviso na tela. |
 | `senai-auth.js` | Login, validação de perfil e chamadas ao Supabase. |
 | `theme-init.js` | Aplica o tema salvo antes de desenhar a página. |
 | `vercel.json` | Cabeçalhos de segurança da publicação. |

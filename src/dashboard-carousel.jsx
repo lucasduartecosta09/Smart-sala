@@ -304,7 +304,7 @@ function DashboardCarousel() {
       )}
       {ativa && createPortal(
         <div className="ap-camada">
-          {cena === 'abertura' && <TelaAbertura key={passo} duracao={estadoApresentacao.duracao} sensores={snapshot.sensores} />}
+          {cena === 'abertura' && <TelaAbertura key={passo} duracao={estadoApresentacao.duracao} sensores={snapshot.sensores} fonte={snapshot.fonte} />}
           {cena === 'equipe' && <TelaEquipe key={passo} duracao={estadoApresentacao.duracao} />}
           <BotaoSairApresentacao onSair={pararApresentacao} />
         </div>,

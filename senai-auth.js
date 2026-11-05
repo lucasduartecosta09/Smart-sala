@@ -113,6 +113,9 @@ window.senaiAuth = (() => {
 
       if (error) throw error;
 
+      // Com o Arduino ou a sala remota ligados, o gráfico mostra só as leituras ao vivo.
+      if (state.fonte && state.fonte !== "simulado") return;
+
       if (data && data.length > 0) {
         state.historico = data.reverse().map((item) => ({
           hora: new Date(item.recorded_at),
@@ -179,8 +182,9 @@ window.senaiAuth = (() => {
     }
   }
 
-  async function saveReading(sensores) {
-    if (!canOperatePanel() || !sensores) return;
+  // origem: "SIMULADO" (padrão do painel) ou "ARDUINO" (leituras reais da USB).
+  async function saveReading(sensores, origem = "SIMULADO") {
+    if (!canOperatePanel() || !sensores) return { ok: false };
 
     try {
       const client = await esperarSupabase();
@@ -190,23 +194,45 @@ window.senaiAuth = (() => {
         .eq("name", "Sala SENAI Smart Class")
         .limit(1);
 
-      if (roomError || !rooms?.length) return;
+      if (roomError || !rooms?.length) return { ok: false };
 
       const { data: { user } } = await client.auth.getUser();
-      if (!user) return;
+      if (!user) return { ok: false };
 
-      await client.from("sensor_readings").insert({
+      const { error } = await client.from("sensor_readings").insert({
         room_id: rooms[0].id,
         temperature: sensores.temperatura,
         humidity: sensores.umidade,
         luminosity: sensores.luminosidade,
         people: Number(sensores.pessoas),
-        source: "SIMULADO",
+        source: origem === "ARDUINO" ? "ARDUINO" : "SIMULADO",
         created_by: user.id
       });
+      if (error) {
+        console.warn("Falha ao salvar telemetria remota.");
+        // Restrição do banco (origem, campo obrigatório ou política) não muda sozinha: quem chama pode parar de tentar.
+        return { ok: false, recusado: ["23502", "23514", "22P02", "42501"].includes(error.code) };
+      }
+      return { ok: true };
     } catch (err) {
       console.warn("Falha ao salvar telemetria remota.");
+      return { ok: false };
     }
+  }
+
+  // Canal Broadcast para o controle pelo celular. Usa só a chave pública (que não expira
+  // como a sessão do login); a segurança vem da assinatura feita com o código da sala.
+  let realtimeClient = null;
+  function realtimeChannel(nome) {
+    if (!window.supabase || typeof window.supabase.createClient !== "function") {
+      throw new Error("Serviço em tempo real indisponível.");
+    }
+    if (!realtimeClient) {
+      realtimeClient = window.supabase.createClient(SENAI_URL, SENAI_PUBLIC_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: "smartclass-sala-tempo-real" }
+      });
+    }
+    return realtimeClient.channel(nome, { config: { broadcast: { self: false, ack: true } } });
   }
 
   async function saveEvent(texto) {
@@ -606,5 +632,5 @@ window.senaiAuth = (() => {
     }
   }
 
-  return { start, saveReading, saveEvent, loadHistory, loadHistoryForExport, manage, isAdmin, canOperatePanel, getProfile };
+  return { start, saveReading, saveEvent, loadHistory, loadHistoryForExport, manage, isAdmin, canOperatePanel, getProfile, realtimeChannel };
 })();

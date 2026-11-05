@@ -78,7 +78,7 @@ function animarReduzido(raiz, duracao) {
     .to(raiz, { autoAlpha: 0, duration: 0.4, ease: 'none' }, Math.max(duracao / 1000 - 0.4, 0.5));
 }
 
-export function TelaAbertura({ duracao, sensores }) {
+export function TelaAbertura({ duracao, sensores, fonte = 'simulado' }) {
   const raiz = useRef(null);
 
   useGSAP(() => {
@@ -101,6 +101,7 @@ export function TelaAbertura({ duracao, sensores }) {
         .from(titulo.chars, { yPercent: 115, duration: 0.75, stagger: 0.03 }, 2.4)
         .from('.ap-abertura-subtitulo', { autoAlpha: 0, y: 18, duration: 0.7 }, 3)
         .from('.ap-sensor', { autoAlpha: 0, y: 20, scale: 0.94, duration: 0.6, stagger: 0.09, ease: 'back.out(1.6)' }, 3.35)
+        .from(raiz.current.querySelectorAll('.ap-ao-vivo'), { autoAlpha: 0, y: 12, duration: 0.5 }, 3.2)
         .set('.ap-pulso', { autoAlpha: 1 }, 2)
         .fromTo('.ap-pulso', { drawSVG: '0% 6%' }, {
           drawSVG: '94% 100%', duration: 1.6, ease: 'power1.in', stagger: { each: 0.22, repeat: -1, repeatDelay: 0.9 }
@@ -122,12 +123,15 @@ export function TelaAbertura({ duracao, sensores }) {
         <MarcaEspelhada />
         <h2 className="ap-abertura-titulo">SENAI <em>Smart Class</em></h2>
         <p className="ap-abertura-subtitulo">Sala de aula inteligente: sensores, automação e comandos de voz</p>
+        {fonte === 'arduino' && (
+          <p className="ap-ao-vivo"><span className="ap-ao-vivo-ponto" aria-hidden="true" />Ao vivo da bancada · Arduino UNO R4 WiFi</p>
+        )}
         <ul className="ap-sensores">
           {SENSORES.map(sensor => (
             <li key={sensor.chave} className="ap-sensor" style={{ '--cor': CORES[sensor.chave] }}>
               <svg className="ico" aria-hidden="true"><use href={`#${sensor.icone}`} /></svg>
               <span className="ap-sensor-nome">{sensor.titulo}</span>
-              <strong className="ap-sensor-valor">{formatarValor(sensor, sensores?.[sensor.chave])}</strong>
+              <strong className="ap-sensor-valor">{formatarValor(sensor, sensores?.[sensor.chave], fonte)}</strong>
             </li>
           ))}
         </ul>
