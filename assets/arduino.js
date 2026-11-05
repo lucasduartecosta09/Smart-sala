@@ -137,7 +137,24 @@
 
   // ===== CONEXÃO WEB SERIAL =====
 
+  const ESPERA_ABRIR_MS = 8000;
+  const ESPERA_SINAIS_MS = 1500;
+  // A janela de escolha mostra só placas USB (Arduino e conversores comuns); portas Bluetooth
+  // com nome de COM ficam de fora, porque travam ao abrir.
+  const FILTROS_USB = [0x2341, 0x2a03, 0x1a86, 0x10c4, 0x0403, 0x303a].map((usbVendorId) => ({ usbVendorId }));
+
+  function comPrazo(promessa, ms) {
+    let relogio = null;
+    const prazo = new Promise((_, rejeitar) => {
+      relogio = setTimeout(() => rejeitar(Object.assign(new Error("prazo"), { name: "TimeoutError" })), ms);
+    });
+    return Promise.race([promessa, prazo]).finally(() => clearTimeout(relogio));
+  }
+
   function descreverErro(erro) {
+    if (erro?.name === "TimeoutError") {
+      return "A placa não respondeu ao abrir a porta. Tire e recoloque o cabo USB, espere o Windows reconhecer e tente de novo.";
+    }
     if (erro?.name === "NetworkError" || erro?.name === "InvalidStateError") {
       return "A porta do Arduino está em uso. Feche o Monitor Serial da IDE do Arduino (ou outra aba do painel) e tente de novo.";
     }
@@ -153,6 +170,8 @@
     aoLinha = () => {},
     aoEstado = () => {},
     aoBytes = () => {},
+    esperaAbrir = ESPERA_ABRIR_MS,
+    esperaSinais = ESPERA_SINAIS_MS,
     armazenamento = (() => { try { return globalThis.localStorage; } catch { return null; } })()
   } = {}) {
     let porta = null;
@@ -238,18 +257,22 @@
     async function abrir(candidata) {
       if (porta || estado === "conectando" || !candidata) return estado === "conectado";
       mudar("conectando");
+      // Uma placa travada pode prender a abertura: com prazo, o botão volta a funcionar.
+      const abertura = Promise.resolve().then(() => candidata.open({ baudRate: velocidade }));
       try {
-        await candidata.open({ baudRate: velocidade });
+        await comPrazo(abertura, esperaAbrir);
       } catch (erro) {
+        // Se a porta abrir depois do prazo, fecha para não ficar presa.
+        if (erro?.name === "TimeoutError") abertura.then(() => candidata.close().catch(() => {}), () => {});
         mudar("erro", descreverErro(erro));
         return false;
       }
       // A UNO R4 WiFi passa a USB por um ESP32-S3 que só envia dados com o DTR ligado,
       // como faz o Monitor Serial da IDE. No Windows o Chrome pode abrir a porta sem ele.
       try {
-        await candidata.setSignals?.({ dataTerminalReady: true, requestToSend: true });
+        await comPrazo(Promise.resolve(candidata.setSignals?.({ dataTerminalReady: true, requestToSend: true })), esperaSinais);
       } catch {
-        // Porta sem sinais de controle: segue sem eles.
+        // Porta sem sinais de controle (ou que não respondeu): segue sem eles.
       }
       porta = candidata;
       encerrando = false;
@@ -268,7 +291,7 @@
       if (porta) return true;
       let escolhida;
       try {
-        escolhida = await serial.requestPort();
+        escolhida = await serial.requestPort({ filters: FILTROS_USB });
       } catch (erro) {
         // Fechar a janela sem escolher não muda nada.
         if (erro?.name !== "NotFoundError") mudar("erro", descreverErro(erro));

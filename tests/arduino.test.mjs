@@ -58,7 +58,13 @@ function criarSerial(portas) {
   const ouvintes = {};
   return {
     pedidos: 0,
-    async requestPort() { this.pedidos++; if (!portas.length) throw Object.assign(new Error('cancelado'), { name: 'NotFoundError' }); return portas[0]; },
+    filtros: null,
+    async requestPort(opcoes) {
+      this.pedidos++;
+      this.filtros = opcoes?.filters ?? null;
+      if (!portas.length) throw Object.assign(new Error('cancelado'), { name: 'NotFoundError' });
+      return portas[0];
+    },
     async getPorts() { return portas; },
     addEventListener(tipo, funcao) { ouvintes[tipo] = funcao; },
     disparar(tipo, alvo) { ouvintes[tipo]?.({ target: alvo }); }
@@ -201,6 +207,38 @@ test('cabo solto vira "perdido" e a placa autorizada volta sozinha', async () =>
 
   const estranha = criarConexao({ serial: criarSerial([criarPorta({ usbVendorId: 0x1a86, usbProductId: 0x7523 })]), armazenamento });
   assert.equal(await estranha.reconectarAutomatico(), false, 'não abre sozinho uma placa diferente');
+});
+
+test('a janela mostra só placas USB e uma placa que não responde não prende o botão', async () => {
+  const { criarConexao } = carregar();
+  const porta = criarPorta();
+  const serial = criarSerial([porta]);
+  const conexao = criarConexao({ serial, armazenamento: memoria() });
+  await conexao.conectar();
+  assert.ok(serial.filtros.some((filtro) => filtro.usbVendorId === 0x2341), 'Arduino (0x2341) aparece na janela');
+  assert.ok(serial.filtros.every((filtro) => typeof filtro.usbVendorId === 'number'), 'só filtros USB: portas Bluetooth ficam de fora');
+
+  // Placa travada: a abertura nunca termina.
+  let fechouDepois = false;
+  const travada = { getInfo: () => ({}), open: () => new Promise(() => {}), close: async () => { fechouDepois = true; } };
+  const detalhes = [];
+  const lenta = criarConexao({ serial: criarSerial([travada]), armazenamento: memoria(), esperaAbrir: 40, aoEstado: (estado, detalhe) => detalhes.push([estado, detalhe]) });
+  assert.equal(await lenta.conectar(), false);
+  assert.equal(lenta.estado, 'erro');
+  assert.match(detalhes.at(-1)[1], /não respondeu/);
+  assert.equal(fechouDepois, false);
+
+  // Depois do erro, dá para tentar de novo (o botão não fica preso em "Conectando…").
+  const boa = criarPorta();
+  const outra = criarConexao({ serial: criarSerial([boa]), armazenamento: memoria(), esperaAbrir: 40 });
+  assert.equal(await outra.conectar(), true);
+
+  // Sinal DTR que não responde não impede a conexão.
+  const semSinal = criarPorta();
+  semSinal.setSignals = () => new Promise(() => {});
+  const teimosa = criarConexao({ serial: criarSerial([semSinal]), armazenamento: memoria(), esperaSinais: 30 });
+  assert.equal(await teimosa.conectar(), true);
+  assert.equal(teimosa.estado, 'conectado');
 });
 
 test('porta ocupada explica o motivo e fechar a janela de escolha não muda nada', async () => {
