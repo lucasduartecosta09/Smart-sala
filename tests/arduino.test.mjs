@@ -42,6 +42,8 @@ function criarPorta(info = { usbVendorId: 0x2341, usbProductId: 0x1002 }) {
       porta.writable = new WritableStream({ write(pedaco) { escritos.push(new TextDecoder().decode(pedaco)); } });
     },
     async close() { porta.fechada = true; },
+    sinais: [],
+    async setSignals(sinais) { porta.sinais.push({ ...sinais }); },
     falar(texto) { controlador.enqueue(new TextEncoder().encode(texto)); },
     perderCabo() {
       controlador.error(Object.assign(new Error('perdido'), { name: 'NetworkError' }));
@@ -153,6 +155,8 @@ test('conecta a 115200, entrega linhas, envia comandos e desconecta pela USB', a
   assert.equal(conexao.estado, 'desconectado');
   assert.equal(await conexao.conectar(), true);
   assert.equal(porta.opcoes.baudRate, 115200);
+  // A ponte USB da UNO R4 WiFi só envia dados com o DTR ligado, como no Monitor Serial.
+  assert.deepEqual(porta.sinais, [{ dataTerminalReady: true, requestToSend: true }]);
   assert.deepEqual(estados, ['conectando', 'conectado']);
   assert.match(armazenamento.getItem('smartclass:arduino'), /"automatico":true/);
 

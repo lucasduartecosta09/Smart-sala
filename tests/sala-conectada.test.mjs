@@ -253,6 +253,23 @@ test('cabo solto deixa o aviso e os dados congelados, sem voltar à simulação'
   assert.equal(painel.$('btn-arduino').textContent.trim(), 'Reconectar Arduino');
 });
 
+test('sem leitura reconhecida, a tela mostra o que chega pela USB', async (t) => {
+  const porta = criarPorta();
+  const painel = await abrirPainel(t, { porta });
+  await painel.clicar('btn-arduino-config');
+  porta.falar('Ola de outro programa\r\nvalor=42\r\n');
+  await esperar(6600);
+  assert.equal(painel.$('fonte-dados-texto').textContent, 'Chegam dados, mas não do firmware v3.6');
+  assert.equal(painel.$('arduino-diagnostico').hidden, false);
+  assert.match(painel.$('arduino-diagnostico').textContent, /2 linhas[\s\S]*Ola de outro programa[\s\S]*valor=42/);
+  assert.match(painel.$('arduino-situacao').textContent, /não as linhas \[SENSORES\]/);
+
+  porta.falar(linhaSensores());
+  await esperar(1200);
+  assert.equal(painel.$('fonte-dados-texto').textContent, 'Ao vivo · Arduino');
+  assert.equal(painel.$('arduino-diagnostico').hidden, true, 'com leitura reconhecida o diagnóstico some');
+});
+
 test('voz no celular liga o ventilador do Arduino ligado no notebook da TV', async (t) => {
   const hub = criarHub();
   t.after(() => hub.fechar());

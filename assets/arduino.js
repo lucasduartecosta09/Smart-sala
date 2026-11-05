@@ -152,6 +152,7 @@
     velocidade = VELOCIDADE,
     aoLinha = () => {},
     aoEstado = () => {},
+    aoBytes = () => {},
     armazenamento = (() => { try { return globalThis.localStorage; } catch { return null; } })()
   } = {}) {
     let porta = null;
@@ -215,6 +216,7 @@
             }
             if (value) {
               falhasSeguidas = 0;
+              aoBytes(value.length);
               separador.receber(decodificador.decode(value, { stream: true }));
             }
           }
@@ -241,6 +243,13 @@
       } catch (erro) {
         mudar("erro", descreverErro(erro));
         return false;
+      }
+      // A UNO R4 WiFi passa a USB por um ESP32-S3 que só envia dados com o DTR ligado,
+      // como faz o Monitor Serial da IDE. No Windows o Chrome pode abrir a porta sem ele.
+      try {
+        await candidata.setSignals?.({ dataTerminalReady: true, requestToSend: true });
+      } catch {
+        // Porta sem sinais de controle: segue sem eles.
       }
       porta = candidata;
       encerrando = false;

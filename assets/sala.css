@@ -122,6 +122,21 @@ body.modo-apresentacao .carousel-cabecalho .fonte-dados { font-size: 0.9rem; pad
   background: var(--chip);
 }
 .sala-codigo .legenda { margin: 0; font-size: 0.8rem; }
+
+/* O que está chegando pela USB quando nenhuma leitura é reconhecida. */
+.sala-diagnostico {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  max-height: 14em;
+  overflow: auto;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-sm);
+  background: var(--chip);
+  color: var(--texto);
+  font: 0.78rem/1.5 ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .sala-codigo .linha-botoes { margin: 6px 0 0; gap: 10px; }
 .sala-codigo-valor {
   color: var(--texto-forte);

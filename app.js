@@ -3600,6 +3600,9 @@ function sincronizarEquipamentos(valores, origem, salvar = true) {
 // ===== ARDUINO NA USB =====
 
 function receberLinhaArduino(linha) {
+  // Diagnóstico: guarda o que chega pela USB, reconhecido ou não.
+  salaArduino.linhasRecebidas = (salaArduino.linhasRecebidas || 0) + 1;
+  salaArduino.ultimasLinhas = [...(salaArduino.ultimasLinhas || []), String(linha).slice(0, 160)].slice(-6);
   const mensagem = window.senaiArduino.interpretarLinha(linha);
   if (!mensagem) return;
 
@@ -3720,7 +3723,10 @@ function aoMudarConexaoArduino(novo, detalhe) {
       dhtValido: true,
       temPorta: false,
       firmware: null,
-      mensagem: ""
+      mensagem: "",
+      bytesRecebidos: 0,
+      linhasRecebidas: 0,
+      ultimasLinhas: []
     });
     pendentesSala.clear();
     estado.fonte = "arduino";
@@ -4077,9 +4083,10 @@ function situacaoSala() {
     if (a.estado === "conectando") return { tipo: "aguardando", texto: "Conectando ao Arduino…" };
     if (a.estado !== "conectado") return { tipo: "alerta", texto: "Arduino desconectado · confira o cabo USB" };
     if (!a.ultimaLeitura) {
-      return Date.now() - a.conectadoEm > 6000
-        ? { tipo: "alerta", texto: "Arduino sem dados reconhecidos" }
-        : { tipo: "aguardando", texto: "Arduino conectado · aguardando leituras" };
+      if (Date.now() - a.conectadoEm <= 6000) return { tipo: "aguardando", texto: "Arduino conectado · aguardando leituras" };
+      return a.bytesRecebidos
+        ? { tipo: "alerta", texto: "Chegam dados, mas não do firmware v3.6" }
+        : { tipo: "alerta", texto: "Porta aberta, mas nada chega pela USB" };
     }
     if (agora - a.ultimaLeitura > LEITURA_ATRASADA_MS) return { tipo: "alerta", texto: "Arduino sem enviar leituras" };
     if (!a.dhtValido) return { tipo: "alerta", texto: "Ao vivo · DHT11 sem leitura" };
@@ -4095,6 +4102,11 @@ function textoSituacaoArduino(suportado, remoto) {
   if (!suportado) return "Este navegador não acessa a USB. No computador da sala, use o Google Chrome ou o Microsoft Edge.";
   const a = salaArduino;
   if (a.estado === "conectando") return "Abrindo a porta do Arduino…";
+  if (a.estado === "conectado" && !a.ultimaLeitura && Date.now() - a.conectadoEm > 6000) {
+    return a.bytesRecebidos
+      ? "A porta abriu e chegam dados, mas não as linhas [SENSORES] do firmware v3.6. Veja abaixo o que está chegando: talvez a placa esteja com outro código ou a porta escolhida não seja a do Arduino."
+      : "A porta abriu, mas nada chega pela USB. Confira se essa porta é a do Arduino (tire o cabo e veja qual some da lista), aperte o RESET da placa e clique em Desconectar e Conectar de novo.";
+  }
   if (a.estado === "conectado") {
     const partes = ["Conectado pela USB"];
     if (a.firmware) partes.push(`firmware v${a.firmware}`);
@@ -4172,6 +4184,15 @@ function atualizarInterfaceSala() {
   mostrarElemento("arduino-card", !remoto);
   mostrarElemento("btn-arduino-config", suportado);
   definirTexto("arduino-situacao", textoSituacaoArduino(suportado, remoto));
+  // Sem leitura reconhecida depois de alguns segundos: mostra o que chega pela USB (um print já diz o problema).
+  const semLeitura = conexao === "conectado" && !salaArduino.ultimaLeitura && Date.now() - salaArduino.conectadoEm > 6000;
+  mostrarElemento("arduino-diagnostico", semLeitura);
+  if (semLeitura) {
+    const linhas = salaArduino.ultimasLinhas || [];
+    definirTexto("arduino-diagnostico",
+      `Recebido pela USB: ${salaArduino.bytesRecebidos || 0} bytes, ${salaArduino.linhasRecebidas || 0} linhas.\n` +
+      (linhas.length ? `Últimas linhas:\n${linhas.join("\n")}` : "Nenhuma linha recebida."));
+  }
   mostrarElemento("btn-arduino-simulacao", estado.fonte === "arduino" && conexao !== "conectado" && conexao !== "conectando");
 
   const ponteAtiva = Boolean(salaPonte.sala);
@@ -4242,7 +4263,8 @@ function configurarSala() {
   if (window.senaiArduino) {
     salaArduino.conexao = window.senaiArduino.criarConexao({
       aoLinha: receberLinhaArduino,
-      aoEstado: aoMudarConexaoArduino
+      aoEstado: aoMudarConexaoArduino,
+      aoBytes: (quantidade) => { salaArduino.bytesRecebidos = (salaArduino.bytesRecebidos || 0) + quantidade; }
     });
     salaArduino.estado = salaArduino.conexao.estado;
   }
