@@ -452,10 +452,12 @@
             <span class="legenda">Código da sala (fica oculto porque esta tela pode estar na TV)</span>
             <output class="sala-codigo-valor" id="ponte-codigo" aria-live="off"></output>
             <div class="linha-botoes">
-              <button class="btn primario" id="btn-ponte-copiar-link" type="button">Copiar link para o celular</button>
+              <button class="btn primario" id="btn-ponte-qr" type="button">Mostrar QR code na TV</button>
+              <button class="btn" id="btn-ponte-copiar-link" type="button">Copiar link para o celular</button>
               <button class="btn" id="btn-ponte-copiar-codigo" type="button">Copiar código</button>
               <button class="btn" id="btn-ponte-mostrar" type="button" aria-pressed="false" aria-controls="ponte-codigo">Mostrar código</button>
             </div>
+            <p class="legenda sala-codigo-dica">O QR code abre um controle sem login, com botões e voz: quem escanear comanda a bancada enquanto este código valer. A tecla <kbd>Q</kbd> mostra e esconde o QR, também no modo apresentação.</p>
           </div>
           <p class="sala-situacao" id="ponte-situacao" role="status" aria-live="polite"></p>
           <div class="linha-botoes">

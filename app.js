@@ -3437,6 +3437,8 @@ const salaPonte = {
   mostrarCodigo: false
 };
 let temporizadorAvisoTela = null;
+const INTERVALO_PEDIDOS_MS = 1500;
+const ultimoPedidoRemoto = new Map();
 
 // Aviso rápido na tela (e na TV espelhada) quando um pedido chega do celular ou das palmas.
 function avisarNaTela(texto) {
@@ -3883,6 +3885,16 @@ function executarComandoRemoto({ id, acao, valor } = {}) {
   }
   const motivo = "controle remoto";
 
+  // Com o QR code na TV, qualquer pessoa pode pedir: cada equipamento aceita um pedido a cada 1,5 s,
+  // para ninguém ficar ligando e desligando o relé sem parar.
+  if (acao !== "estado") {
+    const agora = Date.now();
+    if (agora - (ultimoPedidoRemoto.get(acao) || 0) < INTERVALO_PEDIDOS_MS) {
+      return responder(false, "Aguarde um instante antes de repetir esse pedido.");
+    }
+    ultimoPedidoRemoto.set(acao, agora);
+  }
+
   if (acao === "luz" || acao === "ventilador" || acao === "porta") {
     if (typeof valor !== "boolean") return responder(false, "Valor inválido.");
     if (acao === "porta" && !portaDisponivel()) return responder(false, "A porta não tem servo neste Arduino (grave o firmware v3.7).");
@@ -4235,6 +4247,80 @@ function linkDaSala() {
   return salaPonte.codigo ? `${location.origin}${location.pathname}#sala=${salaPonte.codigo}` : "";
 }
 
+// Página de controle sem login, aberta pelo QR code (fica em assets/, que a Vercel publica).
+function linkDoControle() {
+  return salaPonte.codigo ? new URL(`assets/controle.html#sala=${salaPonte.codigo}`, location.href).href : "";
+}
+
+function carregarGeradorQr() {
+  if (typeof window.qrcode === "function") return Promise.resolve(window.qrcode);
+  return new Promise((resolver, rejeitar) => {
+    const script = document.createElement("script");
+    script.src = "assets/qrcode-generator.js";
+    script.onload = () => (typeof window.qrcode === "function" ? resolver(window.qrcode) : rejeitar(new Error("sem-qr")));
+    script.onerror = () => rejeitar(new Error("sem-qr"));
+    document.head.appendChild(script);
+  });
+}
+
+function fecharQrDaSala() {
+  const camada = document.getElementById("sala-qr");
+  if (!camada) return;
+  camada.remove();
+  salaPonte.focoAntesDoQr?.focus?.({ preventScroll: true });
+}
+
+// QR code em tela cheia (também por cima do modo apresentação): quem estiver na frente da TV escaneia e comanda.
+async function mostrarQrDaSala() {
+  if (!salaPonte.sala || !salaPonte.codigo) return;
+  if (document.getElementById("sala-qr")) {
+    fecharQrDaSala();
+    return;
+  }
+  let gerarQr;
+  try {
+    gerarQr = await carregarGeradorQr();
+  } catch {
+    salaPonte.aviso = { texto: "Não deu para gerar o QR code agora. Use \"Copiar link para o celular\".", ate: Date.now() + 6000 };
+    atualizarInterfaceSala();
+    return;
+  }
+  const qr = gerarQr(0, "M");
+  qr.addData(linkDoControle());
+  qr.make();
+
+  salaPonte.focoAntesDoQr = document.activeElement;
+  const camada = document.createElement("div");
+  camada.id = "sala-qr";
+  camada.className = "sala-qr";
+  camada.setAttribute("role", "dialog");
+  camada.setAttribute("aria-modal", "true");
+  camada.setAttribute("aria-labelledby", "sala-qr-titulo");
+  const cartao = document.createElement("div");
+  cartao.className = "sala-qr-cartao";
+  const titulo = document.createElement("h2");
+  titulo.id = "sala-qr-titulo";
+  titulo.textContent = "Comande a bancada pelo celular";
+  const imagem = document.createElement("img");
+  imagem.src = qr.createDataURL(8, 4);
+  imagem.alt = "QR code que abre o controle da bancada";
+  imagem.className = "sala-qr-imagem";
+  const texto = document.createElement("p");
+  texto.textContent = "Aponte a câmera do celular. Abre o controle com botões e comando de voz, sem login.";
+  const fechar = document.createElement("button");
+  fechar.type = "button";
+  fechar.className = "btn";
+  fechar.textContent = "Fechar (tecla Q)";
+  fechar.addEventListener("click", fecharQrDaSala);
+  cartao.append(titulo, imagem, texto, fechar);
+  camada.append(cartao);
+  camada.addEventListener("click", (evento) => {
+    if (evento.target === camada) fecharQrDaSala();
+  });
+  document.body.appendChild(camada);
+  fechar.focus({ preventScroll: true });
+}
+
 // Uma vez por segundo: sinais de vida entre a sala e o celular e textos de "há X s".
 function tiqueSala() {
   const agora = Date.now();
@@ -4254,6 +4340,22 @@ function configurarSala() {
     salaPonte.mostrarCodigo = !salaPonte.mostrarCodigo;
     atualizarInterfaceSala();
   });
+  $("btn-ponte-qr")?.addEventListener("click", mostrarQrDaSala);
+  // Tecla Q mostra ou esconde o QR code, inclusive no modo apresentação; Esc fecha.
+  document.addEventListener("keydown", (evento) => {
+    const digitando = evento.target?.closest?.("input, textarea, select, [contenteditable='true']");
+    if (evento.key === "Escape" && document.getElementById("sala-qr")) {
+      evento.preventDefault();
+      evento.stopImmediatePropagation();
+      fecharQrDaSala();
+      return;
+    }
+    if (digitando || evento.ctrlKey || evento.metaKey || evento.altKey) return;
+    if ((evento.key === "q" || evento.key === "Q") && salaPonte.sala) {
+      evento.preventDefault();
+      mostrarQrDaSala();
+    }
+  }, true);
   $("controle-form")?.addEventListener("submit", (evento) => {
     evento.preventDefault();
     entrarNaSala($("controle-codigo")?.value);

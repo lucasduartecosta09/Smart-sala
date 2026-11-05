@@ -7,6 +7,8 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 // Mesma ordem do index.html.
 const scripts = ['assets/arduino.js', 'assets/remoto.js', 'app.js'].map((nome) => readFileSync(new URL(`../${nome}`, import.meta.url), 'utf8'));
 const esperar = (ms = 30) => new Promise((resolve) => setTimeout(resolve, ms));
+const htmlControle = readFileSync(new URL('../assets/controle.html', import.meta.url), 'utf8');
+const scriptsControle = ['assets/remoto.js', 'assets/controle.js'].map((nome) => readFileSync(new URL(`../${nome}`, import.meta.url), 'utf8'));
 
 // A Vercel deste projeto publica a pasta assets/ inteira, mas da raiz só os arquivos de sempre.
 // Um script ou estilo novo na raiz daria 404 no site (aconteceu em 05/11/2026).
@@ -258,7 +260,8 @@ test('sem leitura reconhecida, a tela mostra o que chega pela USB', async (t) =>
   const painel = await abrirPainel(t, { porta });
   await painel.clicar('btn-arduino-config');
   porta.falar('Ola de outro programa\r\nvalor=42\r\n');
-  await esperar(6600);
+  // O aviso aparece depois de 6 s; a tela atualiza a cada segundo.
+  await esperar(7400);
   assert.equal(painel.$('fonte-dados-texto').textContent, 'Chegam dados, mas não do firmware v3.6');
   assert.equal(painel.$('arduino-diagnostico').hidden, false);
   assert.match(painel.$('arduino-diagnostico').textContent, /2 linhas[\s\S]*Ola de outro programa[\s\S]*valor=42/);
@@ -320,4 +323,64 @@ test('voz no celular liga o ventilador do Arduino ligado no notebook da TV', asy
   assert.ok(porta.escritos.includes('VENTILADOR 0'));
   assert.ok(porta.escritos.includes('LUZ 0'));
   assert.equal(notebook.$('sala-aviso').textContent, 'Celular: desligar tudo (sem aula)');
+});
+
+async function abrirControle(t, hub, codigo) {
+  const dom = new JSDOM(htmlControle, { runScripts: 'outside-only', url: `https://smartclass.test/assets/controle.html#sala=${codigo}` });
+  t.after(() => dom.window.close());
+  const { window } = dom;
+  window.TextEncoder = TextEncoder;
+  window.TextDecoder = TextDecoder;
+  Object.defineProperty(window, 'crypto', { value: globalThis.crypto, configurable: true });
+  window.senaiAuth = { realtimeChannel: (nome) => hub.canal(nome) };
+  for (const fonte of scriptsControle) window.eval(fonte);
+  await esperar(120);
+  return { window, $: (id) => window.document.getElementById(id) };
+}
+
+test('QR code na TV: o visitante comanda a bancada sem login e não repete o pedido na hora', async (t) => {
+  const hub = criarHub();
+  t.after(() => hub.fechar());
+  const porta = criarPorta();
+  const notebook = await abrirPainel(t, { porta, hub });
+  await conectarArduino(notebook, porta, linhaSensores({ modo: 'MANUAL' }));
+  await notebook.clicar('btn-ponte');
+
+  notebook.window.qrcode = () => ({
+    addData(texto) { notebook.window.__qrTexto = texto; },
+    make() {},
+    createDataURL: () => 'data:image/gif;base64,R0lGODlhAQABAAAAACw='
+  });
+  await notebook.clicar('btn-ponte-qr');
+  assert.ok(notebook.$('sala-qr'), 'o QR aparece em tela cheia');
+  assert.match(notebook.window.__qrTexto, /^https:\/\/smartclass\.test\/assets\/controle\.html#sala=[A-Z2-9]{4}(-[A-Z2-9]{4}){3}$/);
+  const codigo = notebook.window.__qrTexto.split('#sala=')[1];
+  notebook.window.document.dispatchEvent(new notebook.window.KeyboardEvent('keydown', { key: 'q', bubbles: true }));
+  await esperar();
+  assert.equal(notebook.$('sala-qr'), null, 'a tecla Q esconde o QR');
+
+  const visitante = await abrirControle(t, hub, codigo);
+  await esperar(150);
+  assert.equal(visitante.window.location.hash, '', 'o código sai da barra de endereço');
+  assert.equal(visitante.$('selo-texto').textContent, 'Ao vivo · Arduino da bancada');
+  assert.equal(visitante.$('v-temp').textContent, '24,0 °C');
+  assert.equal(visitante.$('v-pessoas').textContent, 'Ocupada');
+  assert.equal(visitante.$('v-luz').textContent, 'Claro');
+  assert.equal(visitante.$('b-porta').hidden, true, 'sem servo no v3.6, a porta não aparece');
+  assert.equal(visitante.$('b-ventilador').disabled, false);
+  assert.match(notebook.$('ponte-situacao').textContent, /Celular conectado/);
+
+  porta.escritos.length = 0;
+  visitante.$('b-ventilador').click();
+  await esperar(150);
+  assert.deepEqual(porta.escritos, ['VENTILADOR 1']);
+  assert.match(visitante.$('retorno').textContent, /Feito: ligar o ventilador/);
+  assert.equal(visitante.$('e-ventilador').textContent, 'Ligado');
+  assert.equal(notebook.$('sala-aviso').textContent, 'Celular: ventilador ligado');
+
+  // Repetir o mesmo pedido na hora: o notebook segura, para proteger o relé.
+  visitante.$('b-ventilador').click();
+  await esperar(150);
+  assert.deepEqual(porta.escritos, ['VENTILADOR 1']);
+  assert.match(visitante.$('retorno').textContent, /Aguarde um instante/);
 });

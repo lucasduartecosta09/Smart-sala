@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://xjmkftxvwsvxjujgaysd.supabase.co wss://xjmkftxvwsvxjujgaysd.supabase.co; font-src 'self'; media-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Controle da bancada | SENAI Smart Class</title>
+<link rel="stylesheet" href="controle.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/dist/umd/supabase.min.js" integrity="sha384-/E7xfJz9bbCsrwJAbrt9CO5JB1REPVQjuSrQT4Cpz2BQBocDVsGLB2/VMAEzYaf+" crossorigin="anonymous" defer></script>
+<script src="../senai-auth.js" defer></script>
+<script src="remoto.js" defer></script>
+<script src="controle.js" defer></script>
+</head>
+<body>
+
+<svg width="0" height="0" class="sprite" aria-hidden="true">
+  <symbol id="c-temp" viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></symbol>
+  <symbol id="c-gota" viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></symbol>
+  <symbol id="c-pessoa" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="c-luz" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.7.6 1 1.3 1 2.3h6c0-1 .3-1.7 1-2.3A7 7 0 0 0 12 2z"/></symbol>
+  <symbol id="c-vento" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07"/></symbol>
+  <symbol id="c-auto" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></symbol>
+  <symbol id="c-porta" viewBox="0 0 24 24"><path d="M5 21V3h11v18M3 21h18M13 12h.01"/></symbol>
+  <symbol id="c-power" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></symbol>
+  <symbol id="c-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></symbol>
+</svg>
+
+<main class="controle">
+  <header class="topo">
+    <p class="marca">SENAI Smart Class</p>
+    <h1>Controle da bancada</h1>
+    <p class="selo" id="selo" data-tipo="aguardando" role="status" aria-live="polite"><span class="selo-ponto" aria-hidden="true"></span><span id="selo-texto">Conectando à sala…</span></p>
+  </header>
+
+  <form class="codigo" id="form-codigo" novalidate hidden>
+    <label for="campo-codigo">Código da sala</label>
+    <p class="dica">Ele aparece no notebook da sala, em Configurações → Controle pelo celular.</p>
+    <div class="codigo-linha">
+      <input id="campo-codigo" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="ABCD-EFGH-JKLM-NPQR">
+      <button class="botao-forte" type="submit">Entrar</button>
+    </div>
+    <p class="erro" id="erro-codigo" role="alert"></p>
+  </form>
+
+  <section class="leituras" aria-label="Leituras ao vivo da sala">
+    <div class="leitura"><svg class="ico" aria-hidden="true"><use href="#c-temp"/></svg><span class="leitura-nome">Temperatura</span><strong id="v-temp">--</strong></div>
+    <div class="leitura"><svg class="ico" aria-hidden="true"><use href="#c-gota"/></svg><span class="leitura-nome">Umidade</span><strong id="v-umid">--</strong></div>
+    <div class="leitura"><svg class="ico" aria-hidden="true"><use href="#c-pessoa"/></svg><span class="leitura-nome">Presença</span><strong id="v-pessoas">--</strong></div>
+    <div class="leitura"><svg class="ico" aria-hidden="true"><use href="#c-luz"/></svg><span class="leitura-nome">Luminosidade</span><strong id="v-luz">--</strong></div>
+  </section>
+
+  <section class="voz" aria-label="Comando de voz">
+    <button class="voz-botao" id="b-voz" type="button">
+      <svg class="ico" aria-hidden="true"><use href="#c-mic"/></svg>
+      <span id="b-voz-texto">Falar um comando</span>
+    </button>
+    <p class="voz-texto" id="voz-texto" aria-live="polite">Diga, por exemplo: "ligar o ventilador" ou "desligar a luz".</p>
+  </section>
+
+  <section class="comandos" aria-label="Equipamentos da sala">
+    <button class="comando" id="b-ventilador" type="button" aria-pressed="false" disabled>
+      <svg class="ico" aria-hidden="true"><use href="#c-vento"/></svg>
+      <span class="comando-nome">Ventilador</span>
+      <span class="comando-estado" id="e-ventilador">--</span>
+    </button>
+    <button class="comando" id="b-luz" type="button" aria-pressed="false" disabled>
+      <svg class="ico" aria-hidden="true"><use href="#c-luz"/></svg>
+      <span class="comando-nome">Luz</span>
+      <span class="comando-estado" id="e-luz">--</span>
+    </button>
+    <button class="comando" id="b-modo" type="button" aria-pressed="false" disabled>
+      <svg class="ico" aria-hidden="true"><use href="#c-auto"/></svg>
+      <span class="comando-nome">Modo automático</span>
+      <span class="comando-estado" id="e-modo">--</span>
+    </button>
+    <button class="comando" id="b-porta" type="button" aria-pressed="false" disabled hidden>
+      <svg class="ico" aria-hidden="true"><use href="#c-porta"/></svg>
+      <span class="comando-nome">Porta</span>
+      <span class="comando-estado" id="e-porta">--</span>
+    </button>
+    <button class="comando comando-tudo" id="b-desligar" type="button" disabled>
+      <svg class="ico" aria-hidden="true"><use href="#c-power"/></svg>
+      <span class="comando-nome">Desligar tudo</span>
+      <span class="comando-estado">ventilador e luz</span>
+    </button>
+  </section>
+
+  <p class="retorno" id="retorno" role="status" aria-live="polite"></p>
+
+  <footer class="rodape">
+    Você está comandando ao vivo a bancada do projeto SENAI Smart Class. Cada pedido aparece na TV da sala.
+  </footer>
+</main>
+
+</body>
+</html>

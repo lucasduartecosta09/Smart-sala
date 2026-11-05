@@ -1,0 +1,129 @@
+/* Controle da bancada pelo celular (página aberta pelo QR code, sem login).
+   Mesma identidade do painel: azul-marinho, ciano e o verde do "ao vivo". */
+:root {
+  --fundo: #070e1e;
+  --cartao: #0f1b35;
+  --cartao-forte: #13244a;
+  --borda: rgba(147, 197, 253, 0.18);
+  --texto: #f1f5f9;
+  --suave: #a3b3c9;
+  --ciano: #22d3ee;
+  --azul: #2563eb;
+  --vivo: #34d399;
+  --aviso: #fb923c;
+  --erro: #f87171;
+  --ligado-fundo: rgba(52, 211, 153, 0.14);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --fundo: #eef3f9;
+    --cartao: #ffffff;
+    --cartao-forte: #e4ecf7;
+    --borda: #cfd9e6;
+    --texto: #0b1a33;
+    --suave: #46566f;
+    --ciano: #0369a1;
+    --azul: #1d4ed8;
+    --vivo: #047857;
+    --aviso: #9a3412;
+    --erro: #b91c1c;
+    --ligado-fundo: rgba(4, 120, 87, 0.12);
+    color-scheme: light;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 400 1rem/1.5 "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+  padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+[hidden] { display: none !important; }
+.sprite { position: absolute; width: 0; height: 0; }
+.ico { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.controle { max-width: 34rem; margin: 0 auto; display: grid; gap: 18px; }
+
+.topo { display: grid; gap: 6px; }
+.marca { margin: 0; color: var(--ciano); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+h1 { margin: 0; font-size: clamp(1.9rem, 8vw, 2.4rem); line-height: 1.05; letter-spacing: -0.02em; }
+.selo {
+  justify-self: start;
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 4px 0 0; padding: 5px 12px;
+  border: 1px solid var(--borda); border-radius: 999px;
+  background: var(--cartao); color: var(--suave);
+  font-size: 0.86rem; font-weight: 600;
+}
+.selo-ponto { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.selo[data-tipo="ao-vivo"] { color: var(--vivo); border-color: var(--vivo); border-color: color-mix(in srgb, var(--vivo) 50%, transparent); }
+.selo[data-tipo="aguardando"] { color: var(--ciano); }
+.selo[data-tipo="alerta"] { color: var(--aviso); border-color: var(--aviso); border-color: color-mix(in srgb, var(--aviso) 50%, transparent); }
+
+.codigo { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--borda); border-radius: 14px; background: var(--cartao); }
+.codigo label { font-weight: 700; }
+.dica { margin: 0; color: var(--suave); font-size: 0.9rem; }
+.codigo-linha { display: flex; flex-wrap: wrap; gap: 10px; }
+.codigo input {
+  flex: 1 1 200px; min-width: 0; padding: 12px; border: 1px solid var(--borda); border-radius: 10px;
+  background: var(--fundo); color: var(--texto); font: inherit; font-size: 1.05rem; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.erro { margin: 0; color: var(--erro); font-size: 0.9rem; }
+.erro:empty { display: none; }
+
+button { font: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--ciano); outline-offset: 2px; }
+.botao-forte { padding: 12px 18px; border: 0; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; }
+
+.leituras { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.leitura {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px;
+  padding: 12px 14px; border: 1px solid var(--borda); border-radius: 14px; background: var(--cartao);
+}
+.leitura .ico { grid-row: span 2; color: var(--ciano); }
+.leitura-nome { color: var(--suave); font-size: 0.82rem; }
+.leitura strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+
+.voz { display: grid; gap: 8px; }
+.voz-botao {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  min-height: 64px; padding: 14px 18px; border: 0; border-radius: 16px;
+  background: linear-gradient(135deg, #06b6d4, #2563eb); color: #fff;
+  font-size: 1.15rem; font-weight: 700;
+  box-shadow: 0 10px 26px -10px rgba(37, 99, 235, 0.7);
+}
+.voz-botao .ico { width: 26px; height: 26px; }
+.voz-botao[aria-pressed="true"] { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.voz-botao:disabled { opacity: 0.5; cursor: not-allowed; }
+.voz-texto { margin: 0; color: var(--suave); font-size: 0.92rem; text-align: center; }
+
+.comandos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.comando {
+  display: grid; justify-items: start; gap: 4px;
+  min-height: 92px; padding: 14px; text-align: left;
+  border: 1px solid var(--borda); border-radius: 16px;
+  background: var(--cartao); color: var(--texto);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.comando .ico { color: var(--suave); }
+.comando-nome { font-weight: 700; font-size: 1.02rem; }
+.comando-estado { color: var(--suave); font-size: 0.88rem; }
+.comando[aria-pressed="true"] { border-color: var(--vivo); background: var(--ligado-fundo); }
+.comando[aria-pressed="true"] .ico, .comando[aria-pressed="true"] .comando-estado { color: var(--vivo); }
+.comando:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Sem a porta (firmware v3.6), o modo automático ocupa a linha toda. */
+.comandos:has(#b-porta[hidden]) #b-modo { grid-column: 1 / -1; }
+.comando-tudo { grid-column: 1 / -1; min-height: 64px; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.comando-tudo .ico { color: var(--aviso); }
+
+.retorno { margin: 0; min-height: 1.5em; text-align: center; font-weight: 600; color: var(--vivo); }
+.retorno[data-erro="true"] { color: var(--aviso); }
+.rodape { color: var(--suave); font-size: 0.84rem; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .comando { transition: none; }
+}

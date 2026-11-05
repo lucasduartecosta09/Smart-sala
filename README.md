@@ -98,6 +98,13 @@ Celular (site + assistente de voz) ──internet──▶ Notebook da TV (site 
 2. O selo mostra "Ao vivo · Arduino da sala". Os botões de **Controles** e a **assistente de voz** passam a comandar a sala: "ligar o ventilador", "desligar a luz", "ligar o modo automático", "desligar tudo".
 3. No modo automático, a voz não desliga um equipamento sozinho (regra do painel): diga "desligar tudo" ou "desligar o modo automático" antes.
 
+### QR code na TV (celular da demonstração, sem login)
+
+1. No notebook, com o controle pelo celular liberado, clique em **Mostrar QR code na TV** ou aperte a tecla **Q**. Ela também funciona no modo apresentação; feche com **Q**, porque o Esc sai da tela cheia.
+2. O celular escaneia e abre `assets/controle.html`: valores ao vivo, botões grandes (ventilador, luz, modo automático, porta com o v3.7, desligar tudo) e **Falar um comando**. Não pede login. O código vai no link e some da barra de endereço.
+3. A página tenta manter a tela do celular acesa. Recarregar a aba volta para a sala.
+4. Quem tiver o QR comanda a bancada enquanto o código valer. Cada equipamento aceita um pedido do celular a cada 1,5 s, para proteger os relés. **Encerrar controle pelo celular** corta todos.
+
 ### O que cada controle envia ao Arduino
 
 | No painel | Comando na USB |
