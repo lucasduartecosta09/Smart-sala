@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const fonte = readFileSync(new URL('../remoto.js', import.meta.url), 'utf8');
+const fonte = readFileSync(new URL('../assets/remoto.js', import.meta.url), 'utf8');
 
 function carregar(extras = {}) {
   const contexto = vm.createContext({ console, TextEncoder, TextDecoder, setTimeout, clearTimeout, crypto: globalThis.crypto, ...extras });

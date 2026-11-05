@@ -123,11 +123,13 @@ Celular (site + assistente de voz) ──internet──▶ Notebook da TV (site 
 
 ### Arquivos
 
-- `arduino.js`: protocolo do firmware (linhas e comandos) e conexão Web Serial, testados em `tests/arduino.test.mjs`.
-- `remoto.js`: código da sala, assinatura das mensagens e canal em tempo real, testados em `tests/remoto.test.mjs`.
+- `assets/arduino.js`: protocolo do firmware (linhas e comandos) e conexão Web Serial, testados em `tests/arduino.test.mjs`.
+- `assets/remoto.js`: código da sala, assinatura das mensagens e canal em tempo real, testados em `tests/remoto.test.mjs`.
 - `app.js` (fim do arquivo): integração com o painel, a ponte do notebook e o controle do celular, testados em `tests/sala-conectada.test.mjs`.
-- `sala.css`: selo "Ao vivo", botão do Arduino, cartões de Configurações e aviso na tela.
+- `assets/sala.css`: selo "Ao vivo", botão do Arduino, cartões de Configurações e aviso na tela.
 - `vercel.json` libera a USB serial (`serial=(self)`) só para o próprio site.
+
+Arquivos novos que o navegador carrega ficam em `assets/`: a publicação na Vercel leva a pasta `assets/` inteira, mas da raiz só os arquivos que o projeto já tinha (`index.html`, `app.js`, `senai-auth.js`, os CSS e as páginas de erro). Um arquivo novo na raiz responde 404 no site.
 
 ### Rotação automática e créditos (no modo apresentação)
 
@@ -181,9 +183,9 @@ O HTML inclui atalhos para escolher sensores caso o bundle não carregue; autent
 | `visual.css` | Layout, gráficos, temas e responsividade. |
 | `senai-auth.css` | Tela de login e área de contas. |
 | `app.js` | Sensores (simulados ou do Arduino), automação, gráficos, voz e controle pelo celular. |
-| `arduino.js` | Leitura e comandos do Arduino pela USB (Web Serial). |
-| `remoto.js` | Canal assinado entre o notebook da sala e o celular. |
-| `sala.css` | Visual do Arduino, do controle pelo celular e do aviso na tela. |
+| `assets/arduino.js` | Leitura e comandos do Arduino pela USB (Web Serial). |
+| `assets/remoto.js` | Canal assinado entre o notebook da sala e o celular. |
+| `assets/sala.css` | Visual do Arduino, do controle pelo celular e do aviso na tela. |
 | `senai-auth.js` | Login, validação de perfil e chamadas ao Supabase. |
 | `theme-init.js` | Aplica o tema salvo antes de desenhar a página. |
 | `vercel.json` | Cabeçalhos de segurança da publicação. |

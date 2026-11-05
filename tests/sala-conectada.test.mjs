@@ -5,8 +5,20 @@ import { JSDOM } from 'jsdom';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 // Mesma ordem do index.html.
-const scripts = ['arduino.js', 'remoto.js', 'app.js'].map((nome) => readFileSync(new URL(`../${nome}`, import.meta.url), 'utf8'));
+const scripts = ['assets/arduino.js', 'assets/remoto.js', 'app.js'].map((nome) => readFileSync(new URL(`../${nome}`, import.meta.url), 'utf8'));
 const esperar = (ms = 30) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A Vercel deste projeto publica a pasta assets/ inteira, mas da raiz só os arquivos de sempre.
+// Um script ou estilo novo na raiz daria 404 no site (aconteceu em 05/11/2026).
+test('scripts e estilos locais ficam na raiz de sempre ou em assets/', () => {
+  const documento = new JSDOM(html).window.document;
+  const raiz = new Set(['theme-init.js', 'visual.css', 'senai-auth.css', 'senai-auth.js', 'app.js']);
+  for (const elemento of documento.querySelectorAll('script[src], link[rel="stylesheet"][href]')) {
+    const caminho = elemento.getAttribute('src') || elemento.getAttribute('href');
+    if (/^https:\/\//.test(caminho)) continue;
+    assert.ok(raiz.has(caminho) || caminho.startsWith('assets/'), `${caminho} não seria publicado`);
+  }
+});
 
 function linhaSensores({ pir = 'PRESENCA', luz = 100, dht = 'T=24.0C UR=55.0%', lampada = 'OFF', ventilador = 'OFF', modo = 'AUTO', porta = null } = {}) {
   return `[SENSORES] PIR=${pir} | LDR=1 | luz_relativa=${luz}% | ${dht} | LUZ=${lampada} | FAN=${ventilador} | SMART=${lampada} | ` +
