@@ -210,6 +210,7 @@ const CircularCarousel = ({
   cornerRadius = 12,
   captions = false,
   onChange,
+  live = 'polite',
   onItemHover,
   onItemClick,
   onItemDoubleClick,
@@ -525,7 +526,14 @@ const CircularCarousel = ({
         state.velocity += (cruise - state.velocity) * (1 - Math.exp(-dt / tau));
         state.angle += state.velocity * dt;
         if (cruise === 0 && s.snap && Math.abs(state.velocity) < SETTLE_SPEED) {
-          state.target = nearest(state.angle);
+          // Extensão local: parado no encaixe, o laço dorme em vez de pedir quadros sem parar.
+          const snapTarget = nearest(state.angle);
+          if (Math.abs(snapTarget - state.angle) < 0.004 && Math.abs(state.velocity) < 0.03) {
+            state.angle = snapTarget;
+            state.velocity = 0;
+          } else {
+            state.target = snapTarget;
+          }
         }
         busy = busy || cruise !== 0 || Math.abs(state.velocity) > 0.01 || state.target !== null;
       }
@@ -991,7 +999,8 @@ const CircularCarousel = ({
           </span>
         </div>
       )}
-      <div className="circular-carousel__live" aria-live="polite" aria-atomic="true">
+      {/* Extensão local: a ilha desliga o anúncio enquanto a rotação automática está ativa. */}
+      <div className="circular-carousel__live" aria-live={live} aria-atomic="true">
         {`${label}, ${active + 1} de ${count}`}
       </div>
     </div>

@@ -36,6 +36,8 @@
   <symbol id="i-lua" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
   <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/></symbol>
+  <symbol id="i-pausa" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 4.8v14.4a1 1 0 0 0 1.53.85l11.2-7.2a1 1 0 0 0 0-1.7L9.03 3.95a1 1 0 0 0-1.53.85z"/></symbol>
   <symbol id="i-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
   <symbol id="i-onda" viewBox="0 0 24 24"><path d="M2 10v4M6 6v12M10 3v18M14 8v8M18 5v14M22 10v4"/></symbol>
   <symbol id="i-trend-up" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
@@ -177,7 +179,7 @@
         <div class="carousel-cabecalho">
           <div>
             <h1 id="carousel-titulo">Monitoramento dos sensores</h1>
-            <p>Passe o cursor sobre um cartão para girar a roleta. Dê um duplo clique para ampliar.</p>
+            <p>A roleta gira sozinha a cada 10 segundos. Passe o cursor sobre um cartão para escolhê-lo e dê um duplo clique para ampliar.</p>
           </div>
           <span class="carousel-sala">Sala SENAI Smart Class</span>
         </div>
@@ -188,6 +190,21 @@
           <button class="btn" type="button" data-dashboard-metric="pessoas" aria-pressed="false">Ocupação</button>
           <button class="btn" type="button" data-dashboard-metric="luminosidade" aria-pressed="false">Luminosidade</button>
         </nav>
+        <footer class="carousel-creditos">
+          <dl>
+            <div class="creditos-grupo">
+              <dt>Desenvolvido por</dt>
+              <dd>Lucas Duarte</dd>
+              <dd>Gustavo de Brito</dd>
+              <dd>Marcio Andrey</dd>
+            </div>
+            <div class="creditos-grupo">
+              <dt>Professores</dt>
+              <dd>Huiatã Ribeiro</dd>
+              <dd>Jorge Guilherme</dd>
+            </div>
+          </dl>
+        </footer>
       </section>
 
       <section id="dashboard-detalhes" aria-labelledby="dashboard-detalhes-titulo" hidden>

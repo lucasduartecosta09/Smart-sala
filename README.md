@@ -15,6 +15,8 @@ A Vercel publica automaticamente os commits enviados à branch `main` deste repo
 ## Funcionalidades
 
 - Indicadores e carrossel circular para escolher o gráfico principal, com históricos contextuais das demais grandezas na aba **Sensores**.
+- Rotação automática da roleta a cada 10 segundos, com botão de pausa, para apresentação em monitor.
+- Faixa de créditos do projeto na tela da roleta.
 - Controles do servo SG90, ventilador DC e LEDs, regras automáticas, exportação de histórico e assistente de voz.
 - Temas escuro e claro. O tema claro usa superfícies brancas, texto escuro e acentos roxos.
 - Layout para computador, tablet e celular.
@@ -64,6 +66,16 @@ Todos os gráficos continuam usando `estado.historico`, com até 100 amostras. A
 
 Verificação manual: confirme o acesso e o carregamento do histórico com uma conta real no Supabase. As leituras e os atuadores continuam simulados. O carregamento remoto existente não filtra sala/sensor; caso o banco contenha outros ambientes, confira a origem das leituras antes de tratá-las como pertencentes a uma única sala. Essa consulta foi preservada nesta junção.
 
+## Rotação automática e créditos (monitor do evento)
+
+- A roleta avança um cartão a cada 10 segundos. A barra abaixo dela mostra o tempo até a próxima troca, na cor do cartão da frente, e o texto ao lado indica qual cartão vem a seguir.
+- **Pausar rotação** para a roleta e **Retomar rotação** volta a girar. Com a preferência de movimento reduzido do sistema, a roleta começa parada e só gira se alguém pedir.
+- Mover o mouse, tocar, rolar, usar o teclado ou chegar à roleta pelo Tab adia a troca. A contagem recomeça do zero 2,5 segundos depois da última interação; um cursor parado ou um foco esquecido na roleta não seguram a apresentação.
+- A contagem também para no dashboard ampliado, em outra aba do painel, com a roleta fora da tela ou com a aba do navegador escondida, e volta sozinha quando a roleta reaparece.
+- Enquanto a roleta gira sozinha, as trocas não são anunciadas ao leitor de tela; com a rotação pausada, voltam a ser anunciadas.
+- A faixa de créditos fica abaixo da roleta, com quem desenvolveu o projeto e os professores.
+- O intervalo é `INTERVALO_ROTACAO_MS` em `src/rotacao-automatica.mjs`. Ao mudar o valor, atualize o texto do cabeçalho em `index.html` e execute `npm run build`.
+
 ## Carrossel circular (React Bits)
 
 O componente oficial [CircularCarousel](https://reactbits.dev/components/circular-carousel) foi instalado por shadcn:
@@ -87,6 +99,7 @@ Os arquivos em `assets/` acompanham o código, portanto a página continua funci
 - `src/components/CircularCarousel.jsx` e `.css`: componente instalado. Adaptações locais pequenas adicionam rótulos em português e a API `ref.focusIndex()` para os atalhos acessíveis. A licença original fica ao lado do componente e é copiada para `assets/`.
 - `src/dashboard-carousel.jsx`: ilha React, navegação, mudança de tema e sincronização com o dashboard.
 - `src/sensor-cards.mjs`: prévias SVG calculadas a partir das leituras reais da sessão (atualmente simuladas).
+- `src/rotacao-automatica.mjs`: temporizador único da rotação automática e motivos de pausa, testado em `tests/rotacao-automatica.test.mjs`.
 - `src/carousel.css`: integração do carrossel ao tema e ao layout responsivo.
 - `scripts/build-carousel.mjs`: gera `assets/dashboard-carousel.js`, CSS e avisos de licença.
 - `app.js`: recebe `dashboard:select-metric` (navegar), `dashboard:open` (abrir com zoom) e `dashboard:close` (voltar), e publica `dashboard:state` somente após o início autenticado. A troca move os canvases existentes; não duplica leituras, filtros, temporizadores ou consultas. O hover não dispara renders React.
@@ -106,6 +119,11 @@ O HTML inclui atalhos para escolher sensores caso o bundle não carregue; autent
 | `theme-init.js` | Aplica o tema salvo antes de desenhar a página. |
 | `vercel.json` | Cabeçalhos de segurança da publicação. |
 | `tests/` | Testes da interface e das proteções do frontend. |
+
+## Créditos
+
+- Desenvolvido por: Lucas Duarte, Gustavo de Brito e Marcio Andrey.
+- Professores: Huiatã Ribeiro e Jorge Guilherme.
 
 ## Validação
 

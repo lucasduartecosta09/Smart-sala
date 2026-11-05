@@ -65,6 +65,87 @@
 .carousel-atalhos { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 #carousel-fallback { margin-top: 16px; }
 .dashboard-carousel .circular-carousel:focus-visible { outline: 2px solid var(--borda-foco); outline-offset: 2px; }
+
+/* Rotação automática: pausa, contagem até o próximo cartão e qual vem a seguir.
+   A barra fica no centro da grade para o texto mudar sem empurrar o botão. */
+.rotacao-controle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 16px;
+  padding-top: 10px;
+}
+.rotacao-botao { justify-self: end; padding: 8px 14px; font-size: 0.85rem; }
+.rotacao-trilho {
+  position: relative;
+  width: clamp(120px, 16vw, 220px);
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--borda);
+}
+.rotacao-barra {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--rotacao-cor, var(--ciano));
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: rotacao-contagem 10s linear forwards;
+}
+@keyframes rotacao-contagem { to { transform: scaleX(1); } }
+.rotacao-status { justify-self: start; color: var(--suave); font-size: 0.85rem; }
+
+/* Créditos do projeto, sempre à vista na tela da roleta (apresentação no monitor). */
+.carousel-creditos {
+  position: relative;
+  margin-top: 14px;
+  padding: 14px 24px 14px 28px;
+  overflow: hidden;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-sm);
+  background: linear-gradient(100deg, var(--vidro-hover), var(--vidro));
+  box-shadow: var(--sombra-card);
+}
+.carousel-creditos::before {
+  content: "";
+  position: absolute;
+  inset: 12px auto 12px 0;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(180deg, var(--ciano), var(--azul));
+}
+.carousel-creditos dl { display: flex; flex-wrap: wrap; gap: 12px 56px; margin: 0; }
+.creditos-grupo { min-width: 0; }
+.carousel-creditos dt {
+  margin-bottom: 4px;
+  color: var(--ciano);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+/* Nomes em linha: o grupo ocupa só a largura da linha de nomes. */
+.carousel-creditos dd {
+  display: inline;
+  margin: 0;
+  color: var(--texto-forte);
+  font-size: clamp(1rem, 0.7rem + 0.5vw, 1.25rem);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+/* O separador fica depois do nome: se a linha quebrar, ela termina no ponto em vez de começar com ele. */
+.carousel-creditos dd:not(:last-child)::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin: 0 8px 0 12px;
+  border-radius: 50%;
+  background: var(--ciano);
+  vertical-align: middle;
+}
 #grafico-principal-slot { min-width: 0; width: 100%; }
 #aba-sensores { padding-top: 0; }
 body[data-aba-ativa="sensores"] .banner { display: none; }
@@ -82,7 +163,9 @@ body[data-aba-ativa="sensores"] .conteudo { padding: 24px 28px; }
 }
 @media (max-width: 600px) {
   body[data-aba-ativa="sensores"] .conteudo { padding: 16px; }
-  .carousel-shell { min-height: 520px; height: calc(100dvh - 160px); }
+  /* No celular o painel cresce com o conteúdo; a roleta tem altura própria para nada se sobrepor. */
+  .carousel-shell { min-height: 0; height: auto; }
+  .dashboard-carousel-anel { flex: none; height: clamp(220px, 34dvh, 340px); min-height: 0; }
   .carousel-cabecalho { min-height: 78px; padding: 15px 16px 15px 22px; }
   .carousel-cabecalho::before { inset-block: 12px; }
   .carousel-cabecalho h1 { font-size: 1.75rem; }
@@ -91,8 +174,17 @@ body[data-aba-ativa="sensores"] .conteudo { padding: 24px 28px; }
   .carousel-atalhos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .carousel-atalhos .btn { min-width: 0; padding-inline: 8px; justify-content: center; font-size: 0.8rem; }
   .carousel-sala { display: none; }
+  .rotacao-controle { grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px; }
+  .rotacao-trilho { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+  .carousel-creditos { margin-top: 16px; padding: 12px 14px 12px 20px; }
+  .carousel-creditos dl { column-gap: 28px; }
+  .carousel-creditos dd { font-size: 0.92rem; }
+  .carousel-creditos dd:not(:last-child)::after { margin: 0 4px 0 8px; }
   .dashboard-detalhes-titulo { flex-basis: 100%; order: 2; }
   .dashboard-detalhes-acoes { margin-left: auto; }
   .dashboard-detalhes-acoes .historico-atualizacao { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .dashboard-zoom-entrada { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-zoom-entrada { animation: none; }
+  .rotacao-trilho { visibility: hidden; }
+}
